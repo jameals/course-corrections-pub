@@ -1,0 +1,1473 @@
+---
+title: "01_make_maintext_figures"
+author: "Jameal Samhouri, Raine Detmer, and Kristin Marshall"
+date: '`r Sys.Date()`'
+output: html_document
+---
+
+README: code for making the main text figures
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# load packages
+
+library("tidyverse")
+library('wesanderson')
+library('ggpubr')
+library('cowplot')
+library('PNWColors')
+library('ggrepel')
+library('grid')
+library('colorRamps')
+library('colorspace')
+
+
+```
+
+
+# Figure 2 all_tupdate_plots
+
+
+```{r fig2_prep}
+
+# read in the simulation output and filter it, pivot it
+
+# update simulations are included in ABCDsens_update_df.csv  in the simulation output folder, and the code for running and saving these simulations is in the “00_run_simulations.Rmd” file. In this data frame, the “strategy” column describes the management strategy and includes GCA (gradual climate adaptive; t_update = 1), ACA (abrupt climate adaptive; t_update = 50), SQ (fixed), update_10 (t_update = 10), and update_4 (t_update = 4). The “change_type” column describes what the true parameter values are doing, with grad = gradual change and step = abrupt change at t = 50. And for the 4-fold changes, you can filter out per_change = -75 or 300
+
+ABCDsens_update_df <- read_csv(here::here('simulation output/ABCDsens_update_df.csv'))
+#glimpse(ABCDsens_update_df)
+
+t_update_df <- ABCDsens_update_df %>%
+  filter(period == 'pre') %>%
+  filter(strategy != 'ACA') %>%
+  filter(change_type == 'grad' &
+      B_cons == 1.2) %>%
+  filter(per_change == -75 | per_change == 300) 
+glimpse(t_update_df)
+
+t_update_df_wide <- t_update_df %>%
+  pivot_wider(
+    names_from = metric, values_from = value
+  ) %>%
+  mutate(
+    change_par_direction = paste0(change_par,' ',direction),
+    strategy_label = case_when(strategy == 'SQ' ~ 'fixed',
+                               strategy == 'GCA' ~ '1-year update',
+                               strategy == 'update_10' ~ '10-year update',
+                               strategy == 'update_4' ~ '4-year update'
+                               )
+  ) %>%
+  group_by(period, hcr_type, change_par, change_type, direction, B_cons, Binit, chng_time2, discount_rate, error_rho, error_cv, error_rep, par_A, per_change, change_par_direction) %>%
+  mutate(
+    Bmn_per_diff_sq = 100 * (Bmn - Bmn[strategy_label == 'fixed']) / Bmn[strategy_label == 'fixed'],
+    Hcm_per_diff_sq = 100 * (Hcm - Hcm[strategy_label == 'fixed']) / Hcm[strategy_label == 'fixed']
+  ) %>%
+  ungroup()
+
+# get ylim
+# df_ylim <- t_update_df %>% dplyr::select(metric, value) %>% filter(metric == 'Bmn' | metric == 'Hcm') %>% group_by(metric) %>% summarise(y_ul = max(value)) 
+
+df_ylim_0 <- t_update_df_wide %>% 
+  summarise(
+    min_Bmn_per_diff_sq = min(Bmn_per_diff_sq),
+    max_Bmn_per_diff_sq = max(Bmn_per_diff_sq),
+    min_Hcm_per_diff_sq = min(Hcm_per_diff_sq),
+    max_Hcm_per_diff_sq = max(Hcm_per_diff_sq)
+  ) %>%
+  dplyr::select(min_Bmn_per_diff_sq, max_Bmn_per_diff_sq, min_Hcm_per_diff_sq, max_Hcm_per_diff_sq)
+
+df_ylim <- tibble(metric = c('Bmn','Hcm'), 
+                    y_ul = c(df_ylim_0$max_Bmn_per_diff_sq, df_ylim_0$max_Hcm_per_diff_sq),
+                    y_ll = c(df_ylim_0$min_Bmn_per_diff_sq, df_ylim_0$min_Hcm_per_diff_sq)
+                    )
+  
+
+```
+
+
+```{r fig2_plot}
+
+# Make the plots
+
+## Plot settings
+
+# pal_d <- pnw_palette(name="Starfish",n=length(unique(t_update_df_wide$change_par)), type = 'continuous')
+# pal_i <- pnw_palette(name="Sunset",n=length(unique(t_update_df_wide$change_par)), type = 'continuous')
+
+#https://colorhunt.co/palettes/blue-green-teal
+#https://www.nceas.ucsb.edu/sites/default/files/2020-04/colorPaletteCheatsheet.pdf
+
+# pal_d <- pnw_palette(name="Bay", type = 'continuous')[c(1,3,5)]
+pal_d <- c('#D55E00', '#F0E442', '#E69F00') # Red – #D55E00 (a burnt, vivid red), Yellow – #F0E442 (bright, bold yellow), Orange – #E69F00 (distinct, darker orange)
+pal_i <- c('#0766AD','#C5E898','#29ADB2')
+#pal_i <- blue2green(3)
+# pal_i <- pnw_palette(name="Bay", type = 'continuous')[c(1,3,5)]
+
+# cols_d <- c("K" = pal_d[1], "r" = pal_d[2], "rK" = pal_d[3])
+
+gc <- guide_colorbar(
+    frame.colour = "black",
+    barheight = 8,
+    frame.linewidth = 2,
+    ticks.colour = "black",
+    ticks.linewidth = 2
+  )
+
+# y_labs <- c('Percent Change in\nMean Population Biomass', "Percent Change in\nCumulative Harvest")
+y_labs <- c('Percent Change', "Percent Change")
+
+
+# y_labs <- c('Percent Change in\nMean Population Biomass with\nClimate Adaptive Management', "Percent Change in\nCumulative Harvest with\nClimate Adaptive Management")
+
+# labelInfo_Bmn <- data.frame(
+#   x = c(1, 1),
+#   y = c(20, -20),
+#   g = c(
+#     "Higher with\nClimate Adaptive Strategy",
+#     "Higher with\nFixed Strategy"
+#   )
+# )
+
+
+
+## Biomass plots
+
+# change_par_p2 <- ifelse(change_par_p=="rK", "r & K", change_par_p)
+
+#note Binit = 125 = K_C/2 for r increase scenarios
+
+plot_Bmn_d <- ggplot(t_update_df_wide %>% 
+         filter(direction == 'decrease'), #%>%
+           #filter(strategy_label == '1-year update' | strategy_label == 'fixed'),
+       aes(x=strategy_label, y=Bmn_per_diff_sq, fill=change_par, group=change_par)
+       #aes(x=1,y=Bmn_per_diff_sq,fill=change_par, group=change_par)
+       ) +
+  geom_point(size=5, colour = 'black', shape = 21) +
+  # geom_col(position = position_dodge()) +
+  geom_line(aes(colour=change_par),alpha=0.8) +
+  geom_hline(yintercept = 0, linetype = 'dashed', color = 'grey46') +
+  annotate('label', x = 1.2, y = 20, label = "Greater Biomass\nWith Climate\nAdaptive Management", fontface = 'bold', size=5) +
+  annotate('label', x = 1.2, y = -22, label = "Greater Biomass\nWith Fixed\nManagement", fontface = 'bold', size=5) +
+  scale_y_continuous(
+    limits = c(df_ylim %>% filter(metric == 'Bmn') %>% pull(y_ll), df_ylim %>% filter(metric == 'Bmn') %>% pull(y_ul)+3),
+    breaks = scales::breaks_pretty(10)) +
+  scale_colour_manual(
+    name = str_wrap('Climate-Induced Decline',20),
+    values = pal_d,
+    breaks = c('K','r','rK'),
+    labels = c('Carrying\ncapacity','Productivity','Both'),
+    aesthetics = c("colour", "fill")
+    ) +
+  # scale_fill_manual(
+  #   name = str_wrap('Demographic change',10),
+  #   values = pal_d#,
+  #   #labels = 
+  #   ) +
+  xlab('') +
+  # xlab("\nManagement Strategy") +
+  scale_x_discrete(limits = c('fixed','10-year update','4-year update','1-year update'), labels = c('No update', str_wrap('Decadal update',10), str_wrap('Every 4 year update',10), str_wrap('Annual update',10))) +
+  # scale_x_discrete(limits = c('fixed','1-year update'), labels = c('Fixed',str_wrap('Annual update',10))) +
+  ylab(y_labs[1]) +
+  # geom_label_repel(
+  #   data          = labelInfo_Bmn,
+  #   mapping       = aes(x, y, label = g),
+  #   size          = 5
+  # ) +
+  #ggtitle(paste0("Gradual decrease")) +
+  #xlab('Gradual decrease') +
+  theme_pubr(legend="right") +
+  theme(
+      #axis.text.x=element_text(size=14),
+      axis.text.x=element_blank(),
+      axis.ticks.x=element_blank(),
+      axis.text.y=element_text(size=12),
+      axis.title = element_text(size = 14),
+      strip.background = element_blank(),
+      strip.text.x = element_blank(),
+      plot.title = element_text(hjust = 0.5),
+      legend.title.align=0.5#,
+      #plot.margin=margin(b=3,t=1,l=1,r=1,unit="lines")
+    ) #+
+  # geom_segment(aes(x=2,xend=4,y=-20,yend=-20),
+  #              linewidth=0.75) +
+  # annotate(geom="text",x=3,y=-26,label="Climate Adaptive",fontface="bold", size = 5) +
+  # coord_cartesian(ylim = c(-30, NA), clip="off")
+
+
+plot_Bmn_d2 <- plot_Bmn_d
+# plot_Bmn_d2 <- plot_Bmn_d +
+#   annotation_custom(grob = linesGrob(), xmin = 1.8, xmax = 4.2, ymin = -41, ymax = -41) +
+#   coord_cartesian(clip="off") +
+#   annotation_custom(grob = grid::textGrob(label = "Climate Adaptive Management", hjust=0, gp=gpar(col="black", cex=1.3)), xmin = 1.3, xmax = 3.3, ymin = -44, ymax = -44) +
+#   annotation_custom(grob = linesGrob(), xmin = 0.5, xmax = 1.5, ymin = -41, ymax = -41) +
+#   annotation_custom(grob = grid::textGrob(label = "Fixed Management", hjust=0, gp=gpar(col="black", cex=1.3)), xmin = 0.39, xmax = 0.6, ymin = -44, ymax = -44) 
+
+# plot_Bmn_d
+# 
+# ggsave(here::here('figures_full/plot_Bmn_d.pdf'),
+#          width=7,height=5)
+# ggsave(here::here('figures_full/plot_Bmn_d.png'),
+#          width=7,height=5)
+
+
+
+# change_par_p2 <- ifelse(change_par_p=="rK", "r & K", change_par_p)
+
+#note Binit = 125 = K_C/2 for r increase scenarios
+
+plot_Bmn_i <- ggplot(t_update_df_wide %>% 
+         filter(direction == 'increase'),
+            aes(x=strategy_label, y=Bmn_per_diff_sq, fill=change_par, group=change_par)
+       ) +
+  geom_point(size=5, colour = 'black', shape = 21) +
+  geom_line(aes(colour=change_par),alpha=0.8) +
+  geom_hline(yintercept = 0, linetype = 'dashed', color = 'grey46') +
+    annotate('label', x = 1.2, y = 20, label = "Greater Biomass\nWith Climate\nAdaptive Management", fontface = 'bold', size=5) +
+  annotate('label', x = 1.2, y = -22, label = "Greater Biomass\nWith Fixed\nManagement", fontface = 'bold', size=5) +
+  scale_y_continuous(
+    limits = c(df_ylim %>% filter(metric == 'Bmn') %>% pull(y_ll), df_ylim %>% filter(metric == 'Bmn') %>% pull(y_ul)+3),
+    breaks = scales::breaks_pretty(10)) +
+  scale_colour_manual(
+    name = str_wrap('Climate-Induced Increase',20),
+    values = pal_i,
+    breaks = c('K','r','rK'),
+    labels = c('Carrying\ncapacity','Productivity','Both'),
+    aesthetics = c("colour", "fill")
+    #values = pal_i#,
+    ) +
+  xlab("") +
+  scale_x_discrete(limits = c('fixed','10-year update','4-year update','1-year update'), labels = c('No update', str_wrap('Decadal update',10), str_wrap('Every 4 year update',10), str_wrap('Annual update',10))) +
+  ylab(y_labs[1]) +
+  #ggtitle(paste0("Gradual increase")) +
+  theme_pubr(legend="right") +
+  theme(
+      #axis.text.x=element_text(size=14),
+      axis.text.x=element_blank(),
+      axis.ticks.x=element_blank(),
+      axis.text.y=element_text(size=12),
+      axis.title = element_text(size = 14),
+      strip.background = element_blank(),
+      strip.text.x = element_blank(),
+      plot.title = element_text(hjust = 0.5),
+      legend.title.align=0.5#,
+      #plot.margin=margin(b=3,t=1,l=1,r=1,unit="lines")
+    )
+
+plot_Bmn_i2 <- plot_Bmn_i
+# plot_Bmn_i2 <- plot_Bmn_i +
+#   annotation_custom(grob = linesGrob(), xmin = 1.8, xmax = 4.2, ymin = -41, ymax = -41) +
+#   coord_cartesian(clip="off") +
+#   annotation_custom(grob = grid::textGrob(label = "Climate Adaptive Management", hjust=0, gp=gpar(col="black", cex=1.3)), xmin = 1.3, xmax = 3.3, ymin = -44, ymax = -44) +
+#   annotation_custom(grob = linesGrob(), xmin = 0.5, xmax = 1.5, ymin = -41, ymax = -41) +
+#   annotation_custom(grob = grid::textGrob(label = "Fixed Management", hjust=0, gp=gpar(col="black", cex=1.3)), xmin = 0.39, xmax = 0.6, ymin = -44, ymax = -44) 
+
+
+
+# plot_Bmn_i
+# 
+# ggsave(here::here('figures_full/plot_Bmn_i.pdf'),
+#          width=7,height=5)
+# ggsave(here::here('figures_full/plot_Bmn_i.png'),
+#          width=7,height=5)
+
+
+
+
+## Harvest plots
+
+# change_par_p2 <- ifelse(change_par_p=="rK", "r & K", change_par_p)
+
+#note Binit = 125 = K_C/2 for r increase scenarios
+
+plot_Hcm_d <- ggplot(t_update_df_wide %>% 
+         filter(direction == 'decrease'),
+            aes(x=strategy_label, y=Hcm_per_diff_sq, fill=change_par, group=change_par)
+       ) +
+  geom_point(size=5, colour = 'black', shape = 21) +
+  geom_line(aes(colour=change_par),alpha=0.8) +
+  geom_hline(yintercept = 0, linetype = 'dashed', color = 'grey46') +
+    annotate('label', x = 3.5, y = 48, label = "Greater Harvest\nWith Climate\nAdaptive Management", fontface = 'bold', size=5) +
+  annotate('label', x = 3.5, y = -15, label = "Greater Harvest With\nFixed Management", fontface = 'bold', size=5) +
+  scale_y_continuous(
+    limits = c(df_ylim %>% filter(metric == 'Hcm') %>% pull(y_ll)-10, df_ylim %>% filter(metric == 'Hcm') %>% pull(y_ul)),
+    breaks = scales::breaks_pretty(10)) +
+  scale_colour_manual(
+    name = str_wrap('Climate-Induced Decline',20),
+    values = pal_d,
+    breaks = c('K','r','rK'),
+    labels = c('Carrying\ncapacity','Productivity','Both'),
+    aesthetics = c("colour", "fill")
+
+    ) +
+  xlab("") +
+  scale_x_discrete(limits = c('fixed','10-year update','4-year update','1-year update'), labels = c('No update', str_wrap('Decadal update',10), str_wrap('Every 4 year update',10), str_wrap('Annual update',10))) +
+  ylab(y_labs[2]) +
+  theme_pubr(legend="right") +
+  theme(
+      axis.text.x=element_text(size=14),
+      axis.ticks.x=element_blank(),
+      axis.text.y=element_text(size=12),
+      axis.title = element_text(size = 14),
+      strip.background = element_blank(),
+      strip.text.x = element_blank(),
+      plot.title = element_text(hjust = 0.5),
+      legend.title.align=0.5,
+      plot.margin=margin(b=3,t=1,l=1,r=1,unit="lines")
+    )
+
+plot_Hcm_d2 <- plot_Hcm_d +
+  annotation_custom(grob = linesGrob(), xmin = 1.8, xmax = 4.2, ymin = -41, ymax = -41) +
+  coord_cartesian(clip="off") +
+  annotation_custom(grob = grid::textGrob(label = "Climate Adaptive Management", hjust=0, gp=gpar(col="black", cex=1.3)), xmin = 1, xmax = 3.3, ymin = -45, ymax = -45) +
+  annotation_custom(grob = linesGrob(), xmin = 0.5, xmax = 1.5, ymin = -41, ymax = -41) +
+  annotation_custom(grob = grid::textGrob(label = "Fixed Management", hjust=0, gp=gpar(col="black", cex=1.3)), xmin = 0.1, xmax = 0.6, ymin = -45, ymax = -45) 
+
+
+# plot_Hcm_d
+# 
+# ggsave(here::here('figures_full/plot_Hcm_d.pdf'),
+#          width=7,height=5)
+# ggsave(here::here('figures_full/plot_Hcm_d.png'),
+#          width=7,height=5)
+
+
+
+# change_par_p2 <- ifelse(change_par_p=="rK", "r & K", change_par_p)
+
+#note Binit = 125 = K_C/2 for r increase scenarios
+
+plot_Hcm_i <- ggplot(t_update_df_wide %>% 
+         filter(direction == 'increase'),
+            aes(x=strategy_label, y=Hcm_per_diff_sq, fill=change_par, group=change_par)
+       ) +
+  geom_point(size=5, colour = 'black', shape = 21) +
+  geom_line(aes(colour=change_par),alpha=0.8) +
+  geom_hline(yintercept = 0, linetype = 'dashed', color = 'grey46') +
+  annotate('label', x = 3.5, y = 48, label = "Greater Harvest\nWith Climate\nAdaptive Management", fontface = 'bold', size=5) +
+  annotate('label', x = 3.5, y = -15, label = "Greater Harvest With\nFixed Management", fontface = 'bold', size=5) +
+  scale_y_continuous(
+    limits = c(df_ylim %>% filter(metric == 'Hcm') %>% pull(y_ll)-10, df_ylim %>% filter(metric == 'Hcm') %>% pull(y_ul)),
+    breaks = scales::breaks_pretty(10)) +
+    scale_colour_manual(
+    name = str_wrap('Climate-Induced Increase',20),
+    values = pal_i,
+    breaks = c('K','r','rK'),
+    labels = c('Carrying\ncapacity','Productivity','Both'),
+    aesthetics = c("colour", "fill")
+    ) +
+  xlab("") +
+  scale_x_discrete(limits = c('fixed','10-year update','4-year update','1-year update'), labels = c('No update', str_wrap('Decadal update',10), str_wrap('Every 4 year update',10), str_wrap('Annual update',10))) +
+  ylab(y_labs[2]) +
+  theme_pubr(legend="right") +
+  theme(
+      axis.text.x=element_text(size=14),
+      axis.ticks.x=element_blank(),
+      axis.text.y=element_text(size=12),
+      axis.title = element_text(size = 14),
+      strip.background = element_blank(),
+      strip.text.x = element_blank(),
+      plot.title = element_text(hjust = 0.5),
+      legend.title.align=0.5,
+      plot.margin=margin(b=3,t=1,l=1,r=1,unit="lines")
+    )
+
+plot_Hcm_i2 <- plot_Hcm_i +
+  annotation_custom(grob = linesGrob(), xmin = 1.8, xmax = 4.2, ymin = -41, ymax = -41) +
+  coord_cartesian(clip="off") +
+  annotation_custom(grob = grid::textGrob(label = "Climate Adaptive Management", hjust=0, gp=gpar(col="black", cex=1.3)), xmin = 1, xmax = 3.3, ymin = -45, ymax = -45) +
+  annotation_custom(grob = linesGrob(), xmin = 0.5, xmax = 1.5, ymin = -41, ymax = -41) +
+  annotation_custom(grob = grid::textGrob(label = "Fixed Management", hjust=0, gp=gpar(col="black", cex=1.3)), xmin = 0.1, xmax = 0.6, ymin = -45, ymax = -45) 
+
+
+# plot_Hcm_i
+# 
+# ggsave(here::here('figures_full/plot_Hcm_i.pdf'),
+#          width=7,height=5)
+# ggsave(here::here('figures_full/plot_Hcm_i.png'),
+#          width=7,height=5)
+
+
+
+
+## Combine all plots
+# need legends on 1st and 3rd plots only
+
+all_tupdate_plots <- plot_grid(
+    plot_Bmn_d2 + theme(legend.position='bottom', axis.text.x=element_blank(), legend.text=element_text(size=16), legend.title=element_text(size=17)),
+    
+    plot_Bmn_i2 + theme(legend.position='bottom', axis.text.x=element_blank(), axis.title.y=element_blank(), legend.text=element_text(size=16), legend.title=element_text(size=17)),
+    
+    plot_Hcm_d2 + theme(legend.position="none"),
+    
+    plot_Hcm_i2 + theme(legend.position="none", axis.title.y=element_blank()),
+    axis = 'rlbt',
+    align="hv",
+    nrow=2,
+    labels="auto"#,
+    #scale = c(1.2, 1.2, 1.2, 1.2)
+) 
+
+# all_tupdate_plots
+
+ggsave(here::here('figures/all_tupdate_plots.pdf'), width=15,height=12)
+ggsave(here::here('figures/all_tupdate_plots.png'), width=15,height=12)
+
+
+
+```
+
+# Figure 3 ABCDsens_Bmn_Hcm_pre_byscenario
+
+
+```{r fig3_functions}
+# functions for making the plots
+
+# ABCD  function 
+gg_ABCD_sens_plot_gcsq <- function(data_sub0, time_period){ # legend_title = % change in K, % change in r, or % change in r + K
+
+  #scale_fill_continuous_diverging(palette = "Blue-Red 3", l1 = 30, l2 = 100, p1 = .9, p2 = 1.2)
+  # pal_d <- pnw_palette(name="Starfish",n=length(dec_set), type = 'continuous')
+  # pal_i <- pnw_palette(name="Sunset",n=length(inc_set), type = 'continuous')
+  
+  gc <- guide_colorbar(
+    frame.colour = "black",
+    barheight = 8,
+    frame.linewidth = 2,
+    ticks.colour = "black",
+    ticks.linewidth = 2
+  )
+  
+  # filter out the data with the desired time period
+  data_sub0 <- data_sub0 %>% filter(period == time_period)
+  
+  data_sub0 <- data_sub0 %>% mutate(strategy = 
+                                      case_when( 
+                                        strategy == 'GCA' ~ 'gradual',
+                                        strategy == 'ACA' ~ 'abrupt',
+                                        strategy == 'SQ' ~ 'fixed',
+                                        .default = strategy)
+  ) %>% 
+    filter(strategy == 'gradual' | strategy == 'fixed')
+  
+  # get ylim
+  df_ylim <- data_sub0 %>% filter(change_type == "grad") %>% dplyr::select(metric, value) %>% filter(metric == 'Bmn' | metric == 'Hcm') %>% group_by(metric) %>% summarise(y_ul = max(value)) # JS added 
+  
+  # % change limits
+  
+  # lims_perchange <- c(
+  #   min(
+  #     data_sub0$per_change
+  #   ),
+  #   max(
+  #     data_sub0$per_change
+  #   )
+  # )
+  
+  lims_perchange_discrete <- 
+    as.factor(sort(unique(data_sub1$per_change)))
+  
+  breaks_perchange_discrete <-
+    as.factor(sort(unique(data_sub1$per_change)))[c(TRUE,FALSE)]
+  
+  
+  # grad decrease
+  data_sub <- data_sub0 %>% filter(change_type == "grad") %>% filter(direction=="decrease")  # JS added 
+  # mean biomass
+  data_sub1 <- data_sub %>% filter(metric == "Bmn")
+  gd_gg_data_sub_B_mn <- ggplot(data_sub1,
+                                aes(x=strategy,y=value, colour=as.factor(per_change), group=per_change)) +
+    geom_point(alpha=.8,size=4)+
+    #geom_jitter() +
+    geom_line(alpha=0.8)+
+    scale_y_continuous(
+      limits = c(0, df_ylim %>% filter(metric == 'Bmn') %>% pull(y_ul)),
+      breaks = scales::breaks_pretty(10)) +
+    scale_color_discrete_diverging(
+      palette = "Blue-Red 3", l1 = 30, l2 = 100, p1 = .9, p2 = 1.2,
+      #limits = lims_perchange,
+      name=str_wrap(legend_title,10), cmax=100
+      ) +
+    # scale_colour_gradientn(colours = pal_d, name=str_wrap(legend_title_d,10), guide = gc)+
+    #xlab("Management Strategy") +
+    scale_x_discrete(limits = c('fixed','gradual'), labels = c(str_wrap('Fixed\n',10), str_wrap('Climate\nAdaptive',10))) + # 'abrupt', str_wrap('Abrupt Climate Adaptive',20), # JS added 
+    ylab("Mean Population Biomass") +
+    ggtitle(paste0("Gradual decrease in\n", ifelse(change_par_p == 'K','carrying capacity',ifelse(change_par_p == 'r','productivity','carrying capacity and productivity')))) + # JS added 
+    theme_pubr(legend="right")+
+    theme(
+      plot.title = element_text(size=20, hjust=0),
+      axis.text.x=element_text(size=13),
+      axis.text.y=element_text(size=13),
+      axis.title = element_text(size = 18),
+      strip.background = element_blank(),
+      strip.text.x = element_blank()
+    )
+  
+  # cumulative harvest
+  data_sub1 <- data_sub %>% filter(metric == "Hcm")
+  gd_gg_data_sub_H_cm <- ggplot(data_sub1,
+                                aes(x=strategy,y=value,colour=as.factor(per_change), group=per_change)) +
+    geom_point(alpha=.8,size=5)+
+    #geom_jitter() +
+    geom_line(alpha=0.8)+
+    scale_y_continuous(
+      limits = c(0, df_ylim %>% filter(metric == 'Hcm') %>% pull(y_ul)),
+      breaks = scales::breaks_pretty(10)) +
+    scale_color_discrete_diverging(
+      limits = lims_perchange_discrete,
+      breaks = breaks_perchange_discrete,
+      name=str_wrap(legend_title,10), cmax=100
+  )  +
+    # scale_colour_gradientn(colours = pal_d, name=str_wrap(legend_title_d,10), guide = gc)+
+    #guides(colour = 'none') + # JS added 
+    #xlab("Management Strategy") +
+    scale_x_discrete(limits = c('fixed','gradual'), labels = c(str_wrap('Fixed',20), str_wrap('Climate\nAdaptive',10))) + # 'abrupt', str_wrap('Abrupt Climate Adaptive',20), # JS added 
+    ylab("Cumulative Harvest") +
+    ggtitle(paste0("Gradual decrease in\n ", ifelse(change_par_p == 'K','carrying capacity',ifelse(change_par_p == 'r','productivity','carrying capacity and productivity')))) + # JS added 
+    theme_pubr(legend="right")+
+    theme(
+      plot.title = element_text(size=20, hjust=0),
+      axis.text.x=element_text(size=13),
+      axis.text.y=element_text(size=13),
+      axis.title = element_text(size = 18),
+      strip.background = element_blank(),
+      strip.text.x = element_blank()
+    )
+  
+  
+  # gradual increase
+  data_sub <- data_sub0 %>% filter(change_type == "grad") %>% filter(direction=="increase")  # JS added
+  # mean biomass
+  data_sub1 <- data_sub %>% filter(metric == "Bmn")
+  gi_gg_data_sub_B_mn <- ggplot(data_sub1,
+                                aes(x=strategy,y=value, colour=as.factor(per_change), group=per_change)) +
+    geom_point(alpha=.8,size=5)+
+    #geom_jitter() +
+    geom_line(alpha=0.8)+
+    scale_y_continuous(
+      limits = c(0, df_ylim %>% filter(metric == 'Bmn') %>% pull(y_ul)),
+      breaks = scales::breaks_pretty(10)) +
+    scale_color_discrete_diverging(
+      limits = lims_perchange_discrete,
+      breaks = breaks_perchange_discrete,
+      name=str_wrap(legend_title,10), cmax=100
+  )  +
+    # scale_colour_gradientn(colours = pal_i, name=str_wrap(legend_title_i,10), guide = gc)+
+    #xlab("Management Strategy") +
+    scale_x_discrete(limits = c('fixed','gradual'), labels = c(str_wrap('Fixed',20), str_wrap('Climate\nAdaptive',10))) + # 'abrupt', str_wrap('Abrupt Climate Adaptive',20), # JS added 
+    ylab("Mean Population Biomass") +
+    ggtitle(paste0("Gradual increase in\n ", ifelse(change_par_p == 'K','carrying capacity',ifelse(change_par_p == 'r','productivity','carrying capacity and productivity')))) + # JS added 
+    theme_pubr(legend="right")+
+    theme(
+      plot.title = element_text(size=20, hjust=0),
+      axis.text.x=element_text(size=13),
+      axis.text.y=element_text(size=13),
+      axis.title = element_text(size = 18),
+      strip.background = element_blank(),
+      strip.text.x = element_blank()
+    )
+  
+  # cumulative harvest
+  data_sub1 <- data_sub %>% filter(metric == "Hcm")
+  gi_gg_data_sub_H_cm <- ggplot(data_sub1,
+                                aes(x=strategy,y=value,colour=as.factor(per_change), group=per_change)) +
+    geom_point(alpha=.8,size=5)+
+    #geom_jitter() +
+    geom_line(alpha=0.8)+
+    scale_y_continuous(
+      limits = c(0, df_ylim %>% filter(metric == 'Hcm') %>% pull(y_ul)),
+      breaks = scales::breaks_pretty(10)) +
+    scale_color_discrete_diverging(
+      limits = lims_perchange_discrete,
+      breaks = breaks_perchange_discrete,
+      name=str_wrap(legend_title,10), cmax=100
+  )  +
+    # scale_colour_gradientn(colours = pal_i, name=str_wrap(legend_title_i,10), guide = gc)+
+    #guides(colour = 'none') + # JS added 
+    #xlab("Management Strategy") +
+    scale_x_discrete(limits = c('fixed','gradual'), labels = c(str_wrap('Fixed',20), str_wrap('Climate\nAdaptive',10))) + # 'abrupt', str_wrap('Abrupt Climate Adaptive',20), # JS added 
+    ylab("Cumulative Harvest") +
+    ggtitle(paste0("Gradual increase in\n ", ifelse(change_par_p == 'K','carrying capacity',ifelse(change_par_p == 'r','productivity','carrying capacity and productivity')))) + # JS added 
+    theme_pubr(legend="right")+
+    theme(
+      plot.title = element_text(size=20, hjust=0),
+      axis.text.x=element_text(size=13),
+      axis.text.y=element_text(size=13),
+      axis.title = element_text(size = 18),
+      strip.background = element_blank(),
+      strip.text.x = element_blank()
+    )
+  
+  
+  
+  # put them together, no legends
+  plot_all_gcsq_nl <- plot_grid(#sd_gg_data_sub_B_mn,
+                        #sd_gg_data_sub_H_cm,
+                        #si_gg_data_sub_B_mn,
+                        #si_gg_data_sub_H_cm,
+                        gd_gg_data_sub_B_mn + theme(legend.position="none", axis.title.x = element_blank()),
+                        gd_gg_data_sub_H_cm + theme(legend.position="none", axis.title.x = element_blank()),
+                        gi_gg_data_sub_B_mn + theme(legend.position="none"),
+                        gi_gg_data_sub_H_cm + theme(legend.position="none"),
+                        labels="auto",
+                        ncol=2#,
+                        #rel_widths = c(1,-0.3, 1),scale=0.9
+  ) #+
+  # draw_text("Management Strategy",x=0.45,y=0.04,size = 12)+ # common x-axis label
+  # draw_text(letters[1:6],x=c(0.26,0.53,0.26,0.53,0.26,0.53),y=c(0.87,0.87,0.58,0.58,0.3,0.3),size=12)
+  
+  # extract the legend from one of the plots
+  legend_combine <- get_legend(
+    # create some space to the left of the legend
+    gd_gg_data_sub_B_mn + theme(
+      legend.box.margin = margin(0, 0, 0, 6),
+      legend.key.size = unit(1.5, 'null'),
+      legend.text=element_text(size=20),
+      legend.title=element_text(size=22)
+      )
+  )
+  
+  # # extract the legend from one of the gradual decrease plots
+  # legend_gd <- get_legend(
+  #   # create some space to the left of the legend
+  #   gd_gg_data_sub_B_mn + theme(legend.box.margin = margin(0, 0, 0, 6))
+  # )
+  # 
+  # # extract the legend from one of the gradual decrease plots
+  # legend_gi <- get_legend(
+  #   # create some space to the left of the legend
+  #   gi_gg_data_sub_B_mn + theme(legend.box.margin = margin(0, 0, 0, 6))
+  # )
+  # 
+  # # make one legend plot with 2 columns
+  # legend_combine <- plot_grid(legend_gd, legend_gi, nrow=2)
+  
+  # add the legend to the row we made earlier. Give it one-third of 
+  # the width of one plot (via rel_widths).
+  plot_all_gcsq <- plot_grid(plot_all_gcsq_nl, legend_combine, rel_widths = c(3, .4))
+  
+  #return(plot_all_gcsq)
+  return(list(
+    plot_all_gcsq,
+    gd_gg_data_sub_B_mn, gd_gg_data_sub_H_cm, gi_gg_data_sub_B_mn, gi_gg_data_sub_H_cm
+  )
+  )
+  
+}
+
+# function to make plots showing relationships between mean biomass (x axis) and cumulative harvest (y axis) for different percent changes in K, r, or both for all grad decrease/increase scenarios pre
+
+gg_ABCD_sens_Bmn_Hcm_plot_gcsq <- function(data_sub0, time_period){ # legend_title = % change in K, % change in r, or % change in r + K
+  
+  # pal_d <- pnw_palette(name="Starfish",n=length(dec_set), type = 'continuous')
+  # pal_i <- pnw_palette(name="Sunset",n=length(inc_set), type = 'continuous')
+  
+  gc <- guide_colorbar(
+    frame.colour = "black",
+    barheight = 8,
+    frame.linewidth = 2,
+    ticks.colour = "black",
+    ticks.linewidth = 2
+  )
+  
+  # filter out the data with the desired time period
+  data_sub0 <- data_sub0 %>% filter(period == time_period)
+  
+  data_sub0 <- data_sub0 %>% mutate(strategy = 
+                                      case_when( 
+                                        strategy == 'GCA' ~ 'gradual',
+                                        strategy == 'ACA' ~ 'abrupt',
+                                        strategy == 'SQ' ~ 'fixed',
+                                        .default = strategy)
+                                    ) %>% 
+    filter(strategy == 'gradual' | strategy == 'fixed')
+  
+  data_sub1 <- data_sub0 %>% pivot_wider(names_from = metric, values_from = value)
+  
+  # set ylims
+  ## Bmn
+  lims_B_mn2 <- c(
+    min(
+      data_sub1$Bmn
+    ),
+    max(
+      data_sub1$Bmn
+    )
+  )
+  
+  ## Hcm
+  lims_H_cm2 <- c(
+    min(
+      data_sub1$Hcm
+    ),
+    max(
+      data_sub1$Hcm
+    )
+  )
+  
+  # % change limits
+  
+  # lims_perchange <- c(
+  #   min(
+  #     data_sub1$per_change
+  #   ),
+  #   max(
+  #     data_sub1$per_change
+  #   )
+  # )
+  
+  lims_perchange_discrete <- 
+    as.factor(sort(unique(data_sub1$per_change)))
+  
+  breaks_perchange_discrete <-
+    as.factor(sort(unique(data_sub1$per_change)))[c(TRUE,FALSE)]
+  
+  # gradual decrease
+  data_sub2 <- data_sub1 %>% filter(change_type == "grad") %>% filter(direction=="decrease") # JS added
+  gd_gg_data_sub_B_mn_H_cm <- ggplot(data_sub2,
+                                     aes(x=Bmn,y=Hcm, colour=as.factor(per_change), group=per_change, shape = strategy)) +
+    geom_point(alpha=.8,size=5) +
+    geom_line(alpha=0.8) +
+    scale_y_continuous(
+      limits = c(lims_H_cm2[1], lims_H_cm2[2]),
+      breaks = scales::breaks_pretty(10)) +
+    scale_x_continuous(
+      limits = c(lims_B_mn2[1], lims_B_mn2[2]),
+      breaks = scales::breaks_pretty(10)) +
+    scale_color_discrete_diverging(
+      limits = lims_perchange_discrete,
+      breaks = breaks_perchange_discrete,
+      name=str_wrap(legend_title,10), cmax=100
+  )  +
+    # scale_colour_gradientn(colours = pal_d, name=str_wrap(legend_title_d,10), guide = gc) +
+    xlab("Mean Population Biomass") +
+    ylab("Cumulative Harvest") +
+    scale_shape_discrete(name = 'Strategy', limits = c('fixed','gradual'), labels = c(str_wrap('Fixed\n',10), str_wrap('Climate\nAdaptive',10))) + # 'abrupt', str_wrap('Abrupt Climate Adaptive',20), # JS added 
+    ggtitle(paste0("Gradual decrease in\n ", ifelse(change_par_p == 'K','carrying capacity',ifelse(change_par_p == 'r','productivity','carrying capacity and productivity')))) +
+    #ggtitle(paste0("Gradual decrease in ", change_par_p)) + # JS added 
+    # guides(shape = guide_legend(order = 1), colour = guide_colourbar(order = 2)) +
+    theme_pubr(legend="right") +
+    theme(
+      plot.title = element_text(size=20, hjust=0),
+      axis.text.x=element_text(size=13),
+      axis.text.y=element_text(size=13),
+      axis.title = element_text(size = 18),
+      strip.background = element_blank(),
+      strip.text.x = element_blank()
+    )
+  
+  # gradual increase
+  data_sub3 <- data_sub1 %>% filter(change_type == "grad") %>% filter(direction=="increase")  # JS added
+  gi_gg_data_sub_B_mn_H_cm <- ggplot(data_sub3,
+                                     aes(x=Bmn,y=Hcm, colour=as.factor(per_change), group=per_change, shape = strategy)) +
+    geom_point(alpha=.8,size=5) +
+    geom_line(alpha=0.8) +
+    scale_y_continuous(
+      limits = c(lims_H_cm2[1], lims_H_cm2[2]),
+      breaks = scales::breaks_pretty(10)) +
+    scale_x_continuous(
+      limits = c(lims_B_mn2[1], lims_B_mn2[2]),
+      breaks = scales::breaks_pretty(10)) +
+    scale_color_discrete_diverging(
+      limits = lims_perchange_discrete,
+      breaks = breaks_perchange_discrete,
+      name=str_wrap(legend_title,10), cmax=100
+  )  +
+    # scale_colour_gradientn(colours = pal_i, name=str_wrap(legend_title_i,10), guide = gc) +
+    xlab("Mean Population Biomass") +
+    ylab("Cumulative Harvest") +
+    scale_shape_discrete(name = 'Strategy', limits = c('fixed','gradual'), labels = c(str_wrap('Fixed\n',10), str_wrap('Climate\nAdaptive',10))) + # 'abrupt', str_wrap('Abrupt Climate Adaptive',20), # JS added 
+    ggtitle(paste0("Gradual increase in\n ", ifelse(change_par_p == 'K','carrying capacity',ifelse(change_par_p == 'r','productivity','carrying capacity and productivity')))) +
+    # ggtitle(paste0("Gradual increase in ", change_par_p)) + # JS added 
+    # guides(shape = guide_legend(order = 1), colour = guide_colourbar(order = 2)) +
+    theme_pubr(legend="right") +
+    theme(
+      plot.title = element_text(size=20, hjust=0),
+      axis.text.x=element_text(size=13),
+      axis.text.y=element_text(size=13),
+      axis.title = element_text(size = 18),
+      strip.background = element_blank(),
+      strip.text.x = element_blank()
+    )
+  
+  # extract the legend from one plot
+  legend_combine_B_mn_H_cm <- get_legend(
+    # create some space to the left of the legend
+    gd_gg_data_sub_B_mn_H_cm + theme(
+      legend.box.margin = margin(0, 0, 0, 6),
+      legend.key.size = unit(1.5, 'null'),
+      legend.text=element_text(size=18),
+      legend.title=element_text(size=20)
+      )
+  )
+  
+  # # extract the legend from the gradual decrease plot
+  # legend_gd_B_mn_H_cm <- get_legend(
+  #   # create some space to the left of the legend
+  #   gd_gg_data_sub_B_mn_H_cm + theme(legend.box.margin = margin(0, 0, 0, 6))
+  # )
+  # 
+  # # extract the legend from the gradual increase plot
+  # legend_gi_B_mn_H_cm <- get_legend(
+  #   # create some space to the left of the legend
+  #   gi_gg_data_sub_B_mn_H_cm + theme(legend.box.margin = margin(0, 0, 0, 6))
+  # )
+  # 
+  # # make one legend plot with 2 columns
+  # legend_combine_B_mn_H_cm <- plot_grid(legend_gd_B_mn_H_cm, legend_gi_B_mn_H_cm, nrow=2)
+  
+  # remove legends
+  gd_gg_data_sub_B_mn_H_cm <- gd_gg_data_sub_B_mn_H_cm + theme(legend.position="none")
+  gi_gg_data_sub_B_mn_H_cm <- gi_gg_data_sub_B_mn_H_cm + theme(legend.position="none")
+  
+  return(list(
+    gd_gg_data_sub_B_mn_H_cm, gi_gg_data_sub_B_mn_H_cm, legend_combine_B_mn_H_cm
+  )
+  )
+  
+}
+
+
+
+# function that combines into 6 panel plot (1 for ea scenario of r, K, rK increase and decrease)
+
+# use these lines for testing the function 
+# preplot_Bmn_Hcm_K_list <- preplot_Bmn_Hcm_K
+# preplot_Bmn_Hcm_r_list <- preplot_Bmn_Hcm_r
+# preplot_Bmn_Hcm_rK_list <- preplot_Bmn_Hcm_rK
+
+gg_ABCD_pre_Bmn_Hcm_byscenario <- function(preplot_Bmn_Hcm_K_list, preplot_Bmn_Hcm_r_list, preplot_Bmn_Hcm_rK_list){
+ 
+  # set ylims and xlims
+  ## Hcm
+  lims_H_cm <- c(
+    min(
+      layer_scales(preplot_Bmn_Hcm_K_list[[1]])$y$range$range, 
+      layer_scales(preplot_Bmn_Hcm_K_list[[2]])$y$range$range,
+      layer_scales(preplot_Bmn_Hcm_r_list[[1]])$y$range$range, 
+      layer_scales(preplot_Bmn_Hcm_r_list[[2]])$y$range$range,
+      layer_scales(preplot_Bmn_Hcm_rK_list[[1]])$y$range$range, 
+      layer_scales(preplot_Bmn_Hcm_rK_list[[2]])$y$range$range
+    ),
+    max(
+      layer_scales(preplot_Bmn_Hcm_K_list[[1]])$y$range$range, 
+      layer_scales(preplot_Bmn_Hcm_K_list[[2]])$y$range$range,
+      layer_scales(preplot_Bmn_Hcm_r_list[[1]])$y$range$range, 
+      layer_scales(preplot_Bmn_Hcm_r_list[[2]])$y$range$range,
+      layer_scales(preplot_Bmn_Hcm_rK_list[[1]])$y$range$range, 
+      layer_scales(preplot_Bmn_Hcm_rK_list[[2]])$y$range$range
+    )
+  )
+  
+  ## Bmn
+  lims_B_mn <- c(
+    min(
+      layer_scales(preplot_Bmn_Hcm_K_list[[1]])$x$range$range, 
+      layer_scales(preplot_Bmn_Hcm_K_list[[2]])$x$range$range,
+      layer_scales(preplot_Bmn_Hcm_r_list[[1]])$x$range$range, 
+      layer_scales(preplot_Bmn_Hcm_r_list[[2]])$x$range$range,
+      layer_scales(preplot_Bmn_Hcm_rK_list[[1]])$x$range$range, 
+      layer_scales(preplot_Bmn_Hcm_rK_list[[2]])$x$range$range 
+    ),
+    max(
+      layer_scales(preplot_Bmn_Hcm_K_list[[1]])$x$range$range, 
+      layer_scales(preplot_Bmn_Hcm_K_list[[2]])$x$range$range,
+      layer_scales(preplot_Bmn_Hcm_r_list[[1]])$x$range$range, 
+      layer_scales(preplot_Bmn_Hcm_r_list[[2]])$x$range$range,
+      layer_scales(preplot_Bmn_Hcm_rK_list[[1]])$x$range$range, 
+      layer_scales(preplot_Bmn_Hcm_rK_list[[2]])$x$range$range
+    )
+  )
+  
+  # grad decrease
+  p_d_Bmn_Hcm <- plot_grid(
+    preplot_Bmn_Hcm_K_list[[1]] + xlim(lims_B_mn) + ylim(lims_H_cm) + theme(axis.title.x = element_blank()), 
+    preplot_Bmn_Hcm_r_list[[1]] + xlim(lims_B_mn) + ylim(lims_H_cm) + theme(axis.title.x = element_blank(), axis.title.y = element_blank()), 
+    preplot_Bmn_Hcm_rK_list[[1]] + xlim(lims_B_mn) + ylim(lims_H_cm) + theme(axis.title.x = element_blank(), axis.title.y = element_blank()),
+    align="hv",
+    nrow=1, 
+    labels="auto"
+  )
+  
+  # grad increase
+  
+  p_i_Bmn_Hcm <- plot_grid(
+    preplot_Bmn_Hcm_K_list[[2]] + xlim(lims_B_mn) + ylim(lims_H_cm), 
+    preplot_Bmn_Hcm_r_list[[2]] + xlim(lims_B_mn) + ylim(lims_H_cm) + theme(axis.title.y = element_blank()),
+    preplot_Bmn_Hcm_rK_list[[2]] + xlim(lims_B_mn) + ylim(lims_H_cm) + theme( axis.title.y = element_blank()),
+    align="hv",
+    nrow=1, 
+    labels=c('d','e','f')
+  )
+  
+  # pick up here 05-22-2024 need to add legend
+  # combine
+  plot_gd_gi_B_mn_H_cm_sixpanel <- plot_grid(
+    plot_grid(p_d_Bmn_Hcm, p_i_Bmn_Hcm, nrow=2), 
+    preplot_Bmn_Hcm_K_list[[3]],
+    rel_widths = c(3, .4)
+  )
+  
+  return(plot_gd_gi_B_mn_H_cm_sixpanel)
+}
+
+
+
+```
+
+
+
+```{r fig3_makeplots}
+
+# make the plot (code from ABCDsens_Bmn_Hcm_pre_byscenario.R)
+
+#ABCDsens_Bmn_Hcm_pre_byscenario.pdf
+
+# read in ABCDsens_df
+
+ABCDsens_df <- read_csv(here::here('simulation output/ABCDsens_update_df.csv'))
+#ABCDsens_df <- read_csv(here::here('simulation output/ABCDsens_df copy.csv'))
+#ABCDsens_df <- read_csv(here::here('simulation output/ABCDsens_df.csv')) # JS added 03-03-2025
+# glimpse(ABCDsens_df)
+
+#unique(ABCDsens_df$strategy)
+
+# filter out the periodic update scenarios
+ABCDsens_df <- ABCDsens_df %>% filter(strategy != "update_10") %>% filter(strategy != "update_4")
+
+#View(ABCDsens_df)
+
+# lines 3209 forward in vignette1_full.Rmd
+
+### plot results main text
+
+####for plots, just show mean biomass and total harvest, for main text focus on grad decrease/increase all on the same plot, pre scenario only One 6-panel plot
+
+dec_set <- c(0.15, 0.3, 0.45, 0.6, 0.75, 0.9)
+inc_set <- c(0.5, 1, 1.5, 2, 2.5, 3, 3.5)
+
+#changing K
+
+change_par_p <- "K"
+# legend_title_d <- "% Decrease in K"
+# legend_title_i <- "% Increase in K"
+# legend_title_d <- "% Decrease"
+# legend_title_i <- "% Increase"
+legend_title <- '% Change'
+
+# pre time period
+preplot_K <- gg_ABCD_sens_plot_gcsq(data_sub = ABCDsens_df[which(ABCDsens_df$change_par==change_par_p), ], time_period = "pre")
+
+# 4 panel plot
+# preplot_K[[1]]
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_K_pre.pdf'),
+#        width=12,height=8)
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_K_pre.png'),
+#        width=12,height=8)
+
+# preplot[[2]]: gd_gg_data_sub_B_mn
+# preplot[[3]]: gd_gg_data_sub_H_cm
+# preplot[[4]]: gi_gg_data_sub_B_mn
+# preplot[[5]]: gi_gg_data_sub_H_cm
+
+# Bmn v Hcm plots, pre period
+
+preplot_Bmn_Hcm_K <- gg_ABCD_sens_Bmn_Hcm_plot_gcsq(data_sub = ABCDsens_df[which(ABCDsens_df$change_par==change_par_p), ], time_period = "pre")
+
+preplot_Bmn_Hcm_K[[1]]
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_Bmn_Hcm_K_decrease_pre.pdf'),
+#        width=12,height=8)
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_Bmn_Hcm_K_decrease_pre.png'),
+#        width=12,height=8)
+
+preplot_Bmn_Hcm_K[[2]]
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_Bmn_Hcm_K_increase_pre.pdf'),
+#        width=12,height=8)
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_Bmn_Hcm_K_increase_pre.png'),
+#        width=12,height=8)
+
+#changing r
+
+
+change_par_p <- "r"
+# legend_title_d <- "% Decrease in r"
+# legend_title_i <- "% Increase in r"
+# legend_title_d <- "% Decrease"
+# legend_title_i <- "% Increase"
+legend_title <- '% Change'
+
+# pre time period
+preplot_r <- gg_ABCD_sens_plot_gcsq(data_sub = ABCDsens_df[which(ABCDsens_df$change_par==change_par_p), ], time_period = "pre")
+
+# 4 panel plot
+# preplot_r[[1]]
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_r_pre.pdf'),
+#        width=12,height=8)
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_r_pre.png'),
+#        width=12,height=8)
+
+# Bmn v Hcm plots, pre period
+
+preplot_Bmn_Hcm_r <- gg_ABCD_sens_Bmn_Hcm_plot_gcsq(data_sub = ABCDsens_df[which(ABCDsens_df$change_par==change_par_p), ], time_period = "pre")
+
+preplot_Bmn_Hcm_r[[1]]
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_Bmn_Hcm_r_decrease_pre.pdf'),
+#        width=12,height=8)
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_Bmn_Hcm_r_decrease_pre.png'),
+#        width=12,height=8)
+
+preplot_Bmn_Hcm_r[[2]]
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_Bmn_Hcm_r_increase_pre.pdf'),
+#        width=12,height=8)
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_Bmn_Hcm_r_increase_pre.png'),
+#        width=12,height=8)
+
+
+# changing r and K
+
+change_par_p <- "rK"
+# legend_title_d <- "% Decrease in r, K"
+# legend_title_i <- "% Increase in r, K"
+# legend_title_d <- "% Decrease"
+# legend_title_i <- "% Increase"
+legend_title <- '% Change'
+
+
+# pre time period
+# preplot_rK <- gg_ABCD_sens_plot_gcsq(data_sub = ABCDsens_df[which(ABCDsens_df$change_par==change_par_p), ], time_period = "pre")
+# 
+# # 4 panel plot
+# preplot_rK[[1]]
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_rK_pre.pdf'),
+#        width=12,height=8)
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_rK_pre.png'),
+#        width=12,height=8)
+
+# Bmn v Hcm plots, pre period
+
+preplot_Bmn_Hcm_rK <- gg_ABCD_sens_Bmn_Hcm_plot_gcsq(data_sub = ABCDsens_df[which(ABCDsens_df$change_par==change_par_p), ], time_period = "pre")
+
+preplot_Bmn_Hcm_rK[[1]]
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_Bmn_Hcm_rK_decrease_pre.pdf'),
+#        width=12,height=8)
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_Bmn_Hcm_rK_decrease_pre.png'),
+#        width=12,height=8)
+
+preplot_Bmn_Hcm_rK[[2]]
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_Bmn_Hcm_rK_increase_pre.pdf'),
+#        width=12,height=8)
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_Bmn_Hcm_rK_increase_pre.png'),
+#        width=12,height=8)
+
+
+# glue together by scenario
+
+# gg_ABCD_pre_byscenario(
+#   preplot_K_list = preplot_K, preplot_r_list = preplot_r, preplot_rK_list = preplot_rK
+# )
+
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_pre_byscenario.pdf'),
+#        width=18,height=10)
+# ggsave(here::here('figures_full/ABCD_sensitivity/ABCDsens_pre_byscenario.png'),
+#        width=18,height=10)
+
+gg_ABCD_pre_Bmn_Hcm_byscenario(
+  preplot_Bmn_Hcm_K_list = preplot_Bmn_Hcm_K, 
+  preplot_Bmn_Hcm_r_list = preplot_Bmn_Hcm_r, 
+  preplot_Bmn_Hcm_rK_list = preplot_Bmn_Hcm_rK
+)
+
+ ggsave(here::here('figures/ABCDsens_Bmn_Hcm_pre_byscenario.pdf'),
+        width=18,height=10)
+ ggsave(here::here('figures/ABCDsens_Bmn_Hcm_pre_byscenario.png'),
+        width=18,height=10)
+```
+
+
+
+# Figure 4 kobe_plot_t50
+
+
+```{r kobe_figs}
+
+
+ABts_df <- read_csv(here::here('simulation output/ABts_df.csv'))
+# note this version of ABts_df.csv has Binit=500, K_1=1000 for r increase scenario. should be Binit=125, K_1=250. for K increase scenario, has r_1=0.25, should be r_1=0.0625
+
+# subset to K increase or decrease 4 fold, add cumulative harvest
+ABts_df_KgSQGCA_1000_250_Bcons1.2 <- ABts_df %>%
+  filter(
+    change_par == 'K' &
+      change_type == 'grad' &
+      B_cons == 1.2 &
+      time <= 50) %>%
+  filter(
+    par_A == 1000 |
+      par_A == 250
+  ) %>%
+  filter(
+    strategy == 'SQ' | strategy == 'GCA'
+  ) %>%
+  group_by(strategy) %>% # group by strategy before calculating Hcm
+  mutate(
+    Hcm = cumsum(Harvest)
+  ) %>% 
+  ungroup()
+
+# subset to r increase or decrease 4 fold, add cumulative harvest
+ABts_df_rgSQGCA_0.25_0.0625_Bcons1.2 <- ABts_df %>%
+  filter(
+    change_par == 'r' &
+      change_type == 'grad' &
+      B_cons == 1.2 &
+      time <= 50) %>%
+  filter(
+    par_A == 0.25 |
+      par_A == 0.0625
+  ) %>%
+  filter(
+    strategy == 'SQ' | strategy == 'GCA'
+  ) %>%
+  group_by(strategy) %>% # group by strategy before calculating Hcm
+  mutate(
+    Hcm = cumsum(Harvest)
+  ) %>% 
+  ungroup()
+
+# subset to rK increase or decrease 4 fold, add cumulative harvest
+ABts_df_rKgSQGCA_0.25_1000_0.0625_250_Bcons1.2 <- ABts_df %>%
+  filter(
+    change_par == 'rK' &
+      change_type == 'grad' &
+      B_cons == 1.2 &
+      time <= 50
+  ) %>%
+  filter(
+    par_A == '0.25_1000' |
+      par_A == '0.0625_250'
+  ) %>%
+  filter(
+    strategy == 'SQ' | strategy == 'GCA'
+  ) %>%
+  group_by(strategy) %>% # group by strategy before calculating Hcm
+  mutate(
+    Hcm = cumsum(Harvest)
+  ) %>% 
+  ungroup()
+
+ABts_focal <- ABts_df_KgSQGCA_1000_250_Bcons1.2 %>%
+  bind_rows(
+    ABts_df_rgSQGCA_0.25_0.0625_Bcons1.2,
+    ABts_df_rKgSQGCA_0.25_1000_0.0625_250_Bcons1.2
+  ) %>%
+  mutate(
+    change_par_direction = paste0(change_par,'_',direction),
+    change_par_direction_label= str_replace(
+      change_par_direction, '_', ' '
+      ),
+    U_rel_UMSY_true = Harvest_rate / UMSY_true,
+    B_rel_BMSY_true = Biomass / BMSY_true
+  )
+
+# glimpse(ABts_focal)
+
+
+
+### Kobe plot. U/Umsy_true vs B/Bmsy_true
+# the problem with an OG Kobe plot is that the reference lines for Umsy_true and Bmsy_true and 1.2Bmsy_true differ for each scenario. They will also differ within a scenario over time. So we make everything relative
+
+my_xlabels = c(0,
+               '0.2*italic(B[msy])',
+               'italic(B[msy])',
+               '1.2*italic(B[msy])',
+               2
+)
+
+my_ylabels = c(0,
+               'italic(U[msy])',
+               2
+)
+
+# realized harvest rate v realized biomass. year=5
+
+# pal_d <- pnw_palette(name="Starfish",n=length(unique(t_update_df_wide$change_par)), type = 'continuous')
+# pal_i <- pnw_palette(name="Sunset",n=length(unique(t_update_df_wide$change_par)), type = 'continuous')
+
+mypal <- c("#2C6184","#9E6374") # pnw_palette(name="Starfish",type = 'continuous')[c(3)], pnw_palette(name="Sunset",type = 'continuous')[c(3)]
+
+t=5
+
+kobe_plot_t5 <- ggplot(
+  data = ABts_focal %>% filter(time == t),
+  aes(
+    x = B_rel_BMSY_true, y = U_rel_UMSY_true, colour = direction, shape = strategy, label = change_par_direction_label
+  )
+) + 
+  geom_jitter(aes(
+    group = change_par_direction_label
+  ), 
+  alpha = 0.5,
+  size=3
+  ) +
+  scale_shape_discrete(
+    name = 'Strategy', 
+    limits = c('SQ','GCA'),  
+    labels = c(str_wrap('Fixed',10), str_wrap('Climate\nAdaptive',20))
+    ) + # 'abrupt', str_wrap('Abrupt Climate Adaptive',20)
+  scale_colour_manual(
+    values = mypal,
+    limits = c('decrease','increase'), 
+    labels = c(str_wrap('Decrease',10), str_wrap('Increase',20))
+  ) +
+  #geom_vline(xintercept = 1, linetype = 'dashed', color = 'grey') +
+  # annotate(geom = "text", x = 1, y = -.015, label = 'italic(B[msy])', parse = TRUE, angle = 80) +
+  geom_vline(xintercept = 1.2, linetype = 'dashed', color = 'grey') +
+  #annotate(geom = "text", x = 1.2, y = -.015, label = '1.2*(italic(B[msy]))', parse = TRUE, angle = 80) +
+  geom_vline(xintercept = 0.2, linetype = 'dotted', color = 'grey') +
+  #annotate(geom = "text", x = 0.2, y = -.015, label = '0.2*(italic(B[msy]))', parse = TRUE, angle = 80) +
+  geom_hline(yintercept = 1, linetype = 'dotdash', color = 'grey') +
+  # annotate(geom = "text", x = -.015, y = 1, label = 'italic(U[msy])', parse = TRUE, angle = 80) +
+  scale_x_continuous(breaks=c(0, 0.2, 1, 1.2, 2),labels=parse(text = my_xlabels), limits = c(0,2)) +
+  scale_y_continuous(breaks=c(0, 1, 2),labels=parse(text = my_ylabels), limits = c(0,2.1)) +
+  annotate("text", x = 0.6, y = 1.85, label = "Meets Avoiding Overfished\nObjective", fontface = 'bold') +
+  annotate("text", x = 1.25, y = 0.7, label = "Meets Avoiding Overfishing\nObjective", fontface = 'bold') +
+  annotate("text", x = 1.53, y = 1.85, label = "Meets Conservation\nObjective", fontface = 'bold') +
+  annotate("text", x = 1.6, y = 0.05, label = "Meets All 3 Objectives", fontface = 'bold') +
+  # ylab('Harvest Rate\nRelative to True *U[msy]*') +
+  # xlab('Biomass\nRelative to True *B[msy]*') +
+  labs(x='Population Biomass',y='Harvest Rate') +
+  geom_text_repel(show.legend  = FALSE, fontface='bold') +
+  guides(
+    shape = guide_legend(title="Strategy", order = 1),
+    colour = guide_legend(title="Direction", order = 2),
+    x = guide_axis(n.dodge = 2)
+  ) +
+  theme_pubr(legend="right") #+
+# theme(
+#   axis.text.x = element_text(angle = 80, vjust=0.5)
+# )
+
+#kobe_plot_t5
+
+# realized harvest rate v realized biomass. year=25
+
+t=25
+
+kobe_plot_t25 <- ggplot(
+  data = ABts_focal %>% filter(time == t),
+  aes(
+    x = B_rel_BMSY_true, y = U_rel_UMSY_true, colour = direction, shape = strategy, label = change_par_direction_label
+  )
+) + 
+  geom_jitter(aes(
+    group = change_par_direction_label
+  ), 
+  alpha = 0.5,
+  size=3
+  ) +
+  scale_shape_discrete(
+    name = 'Strategy', 
+    limits = c('SQ','GCA'),  
+    labels = c(str_wrap('Fixed',10), str_wrap('Climate\nAdaptive',20))
+  ) + # 'abrupt', str_wrap('Abrupt Climate Adaptive',20)
+  scale_colour_manual(
+    values = mypal,
+    limits = c('decrease','increase'), 
+    labels = c(str_wrap('Decrease',10), str_wrap('Increase',20))
+  ) +
+  #geom_vline(xintercept = 1, linetype = 'dashed', color = 'grey') +
+  # annotate(geom = "text", x = 1, y = -.015, label = 'italic(B[msy])', parse = TRUE, angle = 80) +
+  geom_vline(xintercept = 1.2, linetype = 'dashed', color = 'grey') +
+  #annotate(geom = "text", x = 1.2, y = -.015, label = '1.2*(italic(B[msy]))', parse = TRUE, angle = 80) +
+  geom_vline(xintercept = 0.2, linetype = 'dotted', color = 'grey') +
+  #annotate(geom = "text", x = 0.2, y = -.015, label = '0.2*(italic(B[msy]))', parse = TRUE, angle = 80) +
+  geom_hline(yintercept = 1, linetype = 'dotdash', color = 'grey') +
+  # annotate(geom = "text", x = -.015, y = 1, label = 'italic(U[msy])', parse = TRUE, angle = 80) +
+  scale_x_continuous(breaks=c(0, 0.2, 1, 1.2, 2),labels=parse(text = my_xlabels), limits = c(0,2)) +
+  scale_y_continuous(breaks=c(0, 1, 2),labels=parse(text = my_ylabels), limits = c(0,2.1)) +
+  annotate("text", x = 0.6, y = 1.85, label = "Meets Avoiding Overfished\nObjective", fontface = 'bold') +
+  annotate("text", x = 1.25, y = 0.7, label = "Meets Avoiding Overfishing\nObjective", fontface = 'bold') +
+  annotate("text", x = 1.53, y = 1.85, label = "Meets Conservation\nObjective", fontface = 'bold') +
+  annotate("text", x = 1.6, y = 0.05, label = "Meets All 3 Objectives", fontface = 'bold') +
+  guides(x = guide_axis(n.dodge = 2)) +
+  # ylab('Harvest Rate\nRelative to True *U[msy]*') +
+  # xlab('Biomass\nRelative to True *B[msy]*') +
+  labs(x='Population Biomass',y='Harvest Rate') +
+  geom_text_repel(show.legend  = FALSE, fontface='bold') +
+  guides(
+    shape = guide_legend(title="Strategy", order = 1),
+    colour = guide_legend(title="Direction", order = 2),
+    x = guide_axis(n.dodge = 2)
+  ) +
+  theme_pubr(legend="right") #+
+# theme(
+#   axis.text.x = element_text(angle = 80, vjust=0.5)
+# )
+
+#kobe_plot_t25
+
+# realized harvest rate v realized biomass. year=50
+
+t=50
+
+kobe_plot_t50 <- ggplot(
+  data = ABts_focal %>% filter(time == t),
+  aes(
+    x = B_rel_BMSY_true, y = U_rel_UMSY_true, colour = direction, shape = strategy, label = change_par_direction_label
+  )
+) + 
+  geom_jitter(aes(
+    group = change_par_direction_label
+    ), 
+    alpha = 0.5,
+    size=3
+  ) +
+  scale_shape_discrete(
+    name = 'Strategy', 
+    limits = c('SQ','GCA'),  
+    labels = c(str_wrap('Fixed',10), str_wrap('Climate\nAdaptive',20))
+  ) + # 'abrupt', str_wrap('Abrupt Climate Adaptive',20)
+  scale_colour_manual(
+    values = mypal,
+    limits = c('decrease','increase'), 
+    labels = c(str_wrap('Decrease',10), str_wrap('Increase',20))
+  ) +
+  #geom_vline(xintercept = 1, linetype = 'dashed', color = 'grey') +
+  # annotate(geom = "text", x = 1, y = -.015, label = 'italic(B[msy])', parse = TRUE, angle = 80) +
+  geom_vline(xintercept = 1.2, linetype = 'dashed', color = 'grey') +
+  #annotate(geom = "text", x = 1.2, y = -.015, label = '1.2*(italic(B[msy]))', parse = TRUE, angle = 80) +
+  geom_vline(xintercept = 0.2, linetype = 'dotted', color = 'grey') +
+  #annotate(geom = "text", x = 0.2, y = -.015, label = '0.2*(italic(B[msy]))', parse = TRUE, angle = 80) +
+  geom_hline(yintercept = 1, linetype = 'dotdash', color = 'grey') +
+  # annotate(geom = "text", x = -.015, y = 1, label = 'italic(U[msy])', parse = TRUE, angle = 80) +
+  scale_x_continuous(breaks=c(0, 0.2, 1, 1.2, 2),labels=parse(text = my_xlabels), limits = c(0,2)) +
+  scale_y_continuous(breaks=c(0, 1, 2),labels=parse(text = my_ylabels), limits = c(0,2.1)) +
+  annotate("label", x = 0.6, y = 1.75, label = "Meets Avoiding Overfished Objective\nDoes Not Meet Overfishing Objective\nDoes Not Meet Conservation Objective", fontface = 'bold', size=4) +
+  annotate("label", x = 0.6, y = 0.05, label = "Meets Both Fishery Objectives\nDoes Not Meet Conservation Objective", fontface = 'bold', size=4) +
+  annotate("label", x = 1.6, y = 1.75, label = "Meets Conservation Objective\nMeets Avoiding Overfished Objective\nDoes Not Meet Overfishing Objective", fontface = 'bold', size=4) +
+  annotate("label", x = 1.6, y = 0.05, label = "Meets Both Fishery and\nConservation Objectives", fontface = 'bold', size=4) +
+  guides(x = guide_axis(n.dodge = 2)) +
+  # ylab('Harvest Rate\nRelative to True *U[msy]*') +
+  # xlab('Biomass\nRelative to True *B[msy]*') +
+  labs(x='\nPopulation Biomass',y='Harvest Rate\n') +
+  geom_text_repel(show.legend  = FALSE, fontface='bold', size=5) +
+  guides(
+    shape = guide_legend(title="Strategy", order = 1),
+    colour = guide_legend(title="Direction", order = 2),
+    x = guide_axis(n.dodge = 2)
+  ) +
+  theme_pubr(legend="right") +
+  theme(
+    legend.text=element_text(size=16),
+    legend.title=element_text(size=17),
+    axis.text.x = element_text(size=14),
+    axis.text.y = element_text(size=14),
+    axis.title = element_text(size=16)
+  )
+
+#  layer_scales(kobe_plot_t50)$x$range$range
+
+# kobe_plot_t50
+
+
+ggsave(here::here('figures/kobe_plot_t50.pdf'), width=12, height=8)
+ggsave(here::here('figures/kobe_plot_t50.png'), width=12, height=8)
+
+# ### put 4 panels together
+
+# # remove legends
+# kobe_plot_t5_nl <- kobe_plot_t5 + theme(legend.position="none") + labs(subtitle = 't = 5')
+# kobe_plot_t25_nl <- kobe_plot_t25 + theme(legend.position="none") + labs(subtitle = 't = 25')
+# kobe_plot_t50_nl <- kobe_plot_t50 + theme(legend.position="none") + labs(subtitle = 't = 50')
+
+# # extract legend from one plot
+# legend_kobe <- get_legend(
+#   # create some space to the left of the legend
+#   kobe_plot_t50 + theme(legend.box.margin = margin(0, 0, 0, 6))
+# )
+
+
+# kobe_3panel <- plot_grid(
+#   plot_grid(
+#     kobe_plot_t5_nl,
+#     kobe_plot_t25_nl,
+#     kobe_plot_t50_nl,
+#     align="hv",
+#     nrow=1,
+#     labels="auto"
+#   ),
+#   legend_kobe,
+#   ncol=2,
+#   rel_widths = c(3, .5)
+# )
+# 
+# kobe_3panel
+# 
+# 
+# ggsave(here::here('figures_full/kobe_3panel.pdf'),
+#        width=12,height=8)
+# ggsave(here::here('figures_full/kobe_3panel.png'),
+#        width=12,height=8)
+
+```
+
+
+# Figure 5 stock assessment data
+
+We quantified variation in estimated equilibrium unfished spawning biomass (hereafter, unfished biomass) in Pacific Fishery Management Council (PFMC) groundfish stock assessments from the U.S. West Coast. We extracted unfished biomass (or spawning output) from the stock assessments available on the PFMC website (https://www.pcouncil.org/stock-assessments-star-reports-stat-reports-rebuilding-analyses-terms-of-reference/groundfish-stock-assessment-documents/) for 2005 to 2022. The unfished biomass values are conceptually similar to the carrying capacity K in the Samhouri et al. course corrections simulations.
+
+We chose stocks to compare and explore based on assessment frequency and continuity in the units of biomass reported. Thirteen groundfish stocks have been assessed four or more times over 2005-2022. For illustrative purposes we focus here on Pacific hake (Merluccius productus), petrale sole (Eopsetta jordani), and sablefish (Anoplopoma fimbria). All three of these stocks report reference points in terms of units of spawning biomass, are highly valuable, and benefit from regular, Congressionally-mandated monitoring surveys and frequent stock assessments.
+
+Estimates are from the original assessments. For Pacific hake, the central tendency is a median of the posterior distribution and the errors are the 95% credible intervals. For petrale sole and sablefish, the central tendency is the mean point estimate and the errors are the 95% asymptotic confidence intervals. We note that the assessment model structure may have changed over time, which could influence interpretation. For example, we know the hake model has been pretty consistent since 2011, so we might focus just on those more recent years.
+
+
+```{r}
+
+# read in the data
+bzero_dat <- read.csv('assessment/data/assessment_data_AB.csv')
+
+species_names <- c(
+  `hake` = 'Pacific hake',
+  `petrale` = 'Petrale sole',
+  `sablefish` = 'Sablefish'
+)
+
+p<-ggplot(bzero_dat) +
+  geom_ribbon(aes(
+    x=year, ymin = lower95/10^6, ymax = upper95/10^6),
+    alpha = 0.3
+    ) +
+  scale_y_continuous(trans='log10') +
+  geom_line(aes(year, median/10^6)) +
+  geom_point(aes(year , median/10^6)) +
+  facet_wrap(~species, labeller = as_labeller(species_names)) +
+  labs(x = "Year of assessment", y = "Estimate of unfished spawning output\n(millions mt)") +
+  #coord_trans(y = "log") +
+  theme_pubr(legend="right") + 
+  theme( axis.text.x=element_text(size=10), axis.text.y=element_text(size=10), axis.title = element_text(size = 14), strip.background = element_blank(), strip.text.x = element_text(size = 12) ) 
+
+#p
+
+ggsave(here::here('figures/assessment_summary.pdf'),
+        width=8,height=6)
+ggsave(here::here('figures/assessment_summary.png'),
+        width=8,height=6)
+
+# Quickly calculate the percent difference between the minimum and maximum median/mean unfished spawning output values for each species (not in log-scale):
+
+# refsum2<- bzero_dat %>%
+#   group_by(species) %>% 
+#  summarize(B.unf.max=max(median),
+#            B.unf.min = min(median),
+#            percent.change = (max(median)-min(median))
+#             / max(median)) 
+#   #dplyr::select(Stock.Name, B.unf.change)
+# 
+# print(refsum2)
+
+```
+
+
+
+
+
