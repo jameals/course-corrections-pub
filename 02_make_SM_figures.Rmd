@@ -3003,7 +3003,7 @@ t_update_df_stoch_wide <- t_update_df_stoch %>%
   group_by(period, hcr_type, change_par, change_type, direction, B_cons, Binit, chng_time2, discount_rate, error_rho, error_cv, error_rep, par_A, per_change, change_par_direction) %>%
   mutate(
     Bmn_per_diff_sq = 100 * (Bmn - Bmn[strategy_label == 'fixed']) / Bmn[strategy_label == 'fixed'],
-    Hcm_per_diff_sq = 100 * (Hcm - Hcm[strategy_label == 'fixed']) / Hcm[strategy_label == 'fixed']
+    Hcv_per_diff_sq = 100 * (Hcv - Hcv[strategy_label == 'fixed']) / Hcv[strategy_label == 'fixed']
   ) %>%
   ungroup()
 
@@ -3038,56 +3038,56 @@ t_update_df_stoch_wide_Bmn <- t_update_df_stoch_wide_Bmn_median %>%
     names_from = statistic, values_from = Bmn_per_diff_sq
     )
 
-# filter to the min, median, and max per diff sq for Hcm
+# filter to the min, median, and max per diff sq for Hcv
 
-t_update_df_stoch_wide_Hcm_median <- t_update_df_stoch_wide %>%
+t_update_df_stoch_wide_Hcv_median <- t_update_df_stoch_wide %>%
   filter(strategy != 'SQ') %>%
   group_by(change_type, change_par, direction, change_par_direction, strategy_label) %>%
   summarise(
-    Hcm_per_diff_sq = median(Hcm_per_diff_sq)
+    Hcv_per_diff_sq = median(Hcv_per_diff_sq)
     ) %>%
-  mutate(metric = 'Hcm', statistic = 'median')
+  mutate(metric = 'Hcv', statistic = 'median')
 
-t_update_df_stoch_wide_Hcm_max <- t_update_df_stoch_wide %>%
+t_update_df_stoch_wide_Hcv_max <- t_update_df_stoch_wide %>%
   filter(strategy != 'SQ') %>%
   group_by(change_type, change_par, direction, change_par_direction, strategy_label) %>%
-  slice_max(Hcm_per_diff_sq) %>%
-  mutate(metric = 'Hcm', statistic = 'max') %>%
-  dplyr::select(change_type, change_par, direction, change_par_direction, strategy_label, Hcm_per_diff_sq, metric, statistic)
+  slice_max(Hcv_per_diff_sq) %>%
+  mutate(metric = 'Hcv', statistic = 'max') %>%
+  dplyr::select(change_type, change_par, direction, change_par_direction, strategy_label, Hcv_per_diff_sq, metric, statistic)
 
-t_update_df_stoch_wide_Hcm_min <- t_update_df_stoch_wide %>%
+t_update_df_stoch_wide_Hcv_min <- t_update_df_stoch_wide %>%
   filter(strategy != 'SQ') %>%
   group_by(change_type, change_par, direction, change_par_direction, strategy_label) %>%
-  slice_min(Hcm_per_diff_sq) %>%
-  mutate(metric = 'Hcm', statistic = 'min') %>%
-  dplyr::select(change_type, change_par, direction, change_par_direction, strategy_label, Hcm_per_diff_sq, metric, statistic)
+  slice_min(Hcv_per_diff_sq) %>%
+  mutate(metric = 'Hcv', statistic = 'min') %>%
+  dplyr::select(change_type, change_par, direction, change_par_direction, strategy_label, Hcv_per_diff_sq, metric, statistic)
 
-t_update_df_stoch_wide_Hcm <- t_update_df_stoch_wide_Hcm_median %>% 
-  bind_rows(t_update_df_stoch_wide_Hcm_max) %>%
-  bind_rows(t_update_df_stoch_wide_Hcm_min) %>%
+t_update_df_stoch_wide_Hcv <- t_update_df_stoch_wide_Hcv_median %>% 
+  bind_rows(t_update_df_stoch_wide_Hcv_max) %>%
+  bind_rows(t_update_df_stoch_wide_Hcv_min) %>%
   pivot_wider(
-    names_from = statistic, values_from = Hcm_per_diff_sq
+    names_from = statistic, values_from = Hcv_per_diff_sq
     )
 
 t_update_df_stoch_wide <- t_update_df_stoch_wide_Bmn %>%
-  bind_rows(t_update_df_stoch_wide_Hcm)
+  bind_rows(t_update_df_stoch_wide_Hcv)
 
 
 df_ylim_0_stoch <- c(
     min_Bmn_per_diff_sq = min(t_update_df_stoch_wide_Bmn_min$Bmn_per_diff_sq),
     max_Bmn_per_diff_sq = max(t_update_df_stoch_wide_Bmn_max$Bmn_per_diff_sq),
-    min_Hcm_per_diff_sq = min(t_update_df_stoch_wide_Hcm_min$Hcm_per_diff_sq),
-    max_Hcm_per_diff_sq = max(t_update_df_stoch_wide_Hcm_max$Hcm_per_diff_sq)
+    min_Hcv_per_diff_sq = min(t_update_df_stoch_wide_Hcv_min$Hcv_per_diff_sq),
+    max_Hcv_per_diff_sq = max(t_update_df_stoch_wide_Hcv_max$Hcv_per_diff_sq)
   )
 
-df_ylim_stoch <- tibble(metric = c('Bmn','Hcm'), 
+df_ylim_stoch <- tibble(metric = c('Bmn','Hcv'), 
                     y_ul = c(
                       df_ylim_0_stoch[['max_Bmn_per_diff_sq']],
-                      df_ylim_0_stoch[['max_Hcm_per_diff_sq']]
+                      df_ylim_0_stoch[['max_Hcv_per_diff_sq']]
                       ),
                     y_ll = c(
                       df_ylim_0_stoch[['min_Bmn_per_diff_sq']],
-                      df_ylim_0_stoch[['min_Hcm_per_diff_sq']]
+                      df_ylim_0_stoch[['min_Hcv_per_diff_sq']]
                       )
                     )
   
@@ -3301,9 +3301,9 @@ plot_Bmn_i2 <- plot_Bmn_i
 
 #note Binit = 125 = K_C/2 for r increase scenarios
 
-plot_Hcm_d <- ggplot(t_update_df_stoch_wide %>% 
+plot_Hcv_d <- ggplot(t_update_df_stoch_wide %>% 
          filter(direction == 'decrease') %>%
-           filter(metric == 'Hcm'),
+           filter(metric == 'Hcv'),
             aes(x=strategy_label, y=median, fill=change_par, group=change_par)
        ) +
   geom_point(size=5, colour = 'black', shape = 21) +
@@ -3317,7 +3317,7 @@ plot_Hcm_d <- ggplot(t_update_df_stoch_wide %>%
     annotate('label', x = 1.2, y = 48, label = "Greater Harvest\nWith Climate\nAdaptive Management", fontface = 'bold', size=5) +
   annotate('label', x = 1.2, y = -15, label = "Greater Harvest With\nFixed Management", fontface = 'bold', size=5) +
   scale_y_continuous(
-    limits = c(df_ylim_stoch %>% filter(metric == 'Hcm') %>% pull(y_ll)-10, df_ylim_stoch %>% filter(metric == 'Hcm') %>% pull(y_ul)),
+    limits = c(df_ylim_stoch %>% filter(metric == 'Hcv') %>% pull(y_ll)-10, df_ylim_stoch %>% filter(metric == 'Hcv') %>% pull(y_ul)),
     breaks = scales::breaks_pretty(10)) +
   scale_colour_manual(
     name = str_wrap('Climate-Induced Decline',20),
@@ -3343,7 +3343,7 @@ plot_Hcm_d <- ggplot(t_update_df_stoch_wide %>%
       plot.margin=margin(b=3,t=1,l=1,r=1,unit="lines")
     )
 
-plot_Hcm_d2 <- plot_Hcm_d +
+plot_Hcv_d2 <- plot_Hcv_d +
   annotation_custom(grob = linesGrob(), xmin = 1.8, xmax = 4.2, ymin = -61, ymax = -61) +
   coord_cartesian(clip="off") +
   annotation_custom(grob = grid::textGrob(label = "Climate Adaptive Management", hjust=0, gp=gpar(col="black", cex=1.3)), xmin = 1, xmax = 3.3, ymin = -67, ymax = -67) +
@@ -3351,11 +3351,11 @@ plot_Hcm_d2 <- plot_Hcm_d +
   annotation_custom(grob = grid::textGrob(label = "Fixed Management", hjust=0, gp=gpar(col="black", cex=1.3)), xmin = 0.1, xmax = 0.6, ymin = -67, ymax = -67) 
 
 
-# plot_Hcm_d
+# plot_Hcv_d
 # 
-# ggsave(here::here('figures_full/plot_Hcm_d.pdf'),
+# ggsave(here::here('figures_full/plot_Hcv_d.pdf'),
 #          width=7,height=5)
-# ggsave(here::here('figures_full/plot_Hcm_d.png'),
+# ggsave(here::here('figures_full/plot_Hcv_d.png'),
 #          width=7,height=5)
 
 
@@ -3364,9 +3364,9 @@ plot_Hcm_d2 <- plot_Hcm_d +
 
 #note Binit = 125 = K_C/2 for r increase scenarios
 
-plot_Hcm_i <- ggplot(t_update_df_stoch_wide %>% 
+plot_Hcv_i <- ggplot(t_update_df_stoch_wide %>% 
          filter(direction == 'increase') %>%
-           filter(metric == 'Hcm'),
+           filter(metric == 'Hcv'),
             aes(x=strategy_label, y=median, fill=change_par, group=change_par)
        ) +
   geom_point(size=5, colour = 'black', shape = 21) +
@@ -3380,7 +3380,7 @@ plot_Hcm_i <- ggplot(t_update_df_stoch_wide %>%
   annotate('label', x = 1.2, y = 48, label = "Greater Harvest\nWith Climate\nAdaptive Management", fontface = 'bold', size=5) +
   annotate('label', x = 1.2, y = -15, label = "Greater Harvest With\nFixed Management", fontface = 'bold', size=5) +
   scale_y_continuous(
-    limits = c(df_ylim_stoch %>% filter(metric == 'Hcm') %>% pull(y_ll)-10, df_ylim_stoch %>% filter(metric == 'Hcm') %>% pull(y_ul)),
+    limits = c(df_ylim_stoch %>% filter(metric == 'Hcv') %>% pull(y_ll)-10, df_ylim_stoch %>% filter(metric == 'Hcv') %>% pull(y_ul)),
     breaks = scales::breaks_pretty(10)) +
     scale_colour_manual(
     name = str_wrap('Climate-Induced Increase',20),
@@ -3405,7 +3405,7 @@ plot_Hcm_i <- ggplot(t_update_df_stoch_wide %>%
       plot.margin=margin(b=3,t=1,l=1,r=1,unit="lines")
     )
 
-plot_Hcm_i2 <- plot_Hcm_i +
+plot_Hcv_i2 <- plot_Hcv_i +
   annotation_custom(grob = linesGrob(), xmin = 1.8, xmax = 4.2, ymin = -61, ymax = -61) +
   coord_cartesian(clip="off") +
   annotation_custom(grob = grid::textGrob(label = "Climate Adaptive Management", hjust=0, gp=gpar(col="black", cex=1.3)), xmin = 1, xmax = 3.3, ymin = -67, ymax = -67) +
@@ -3413,11 +3413,11 @@ plot_Hcm_i2 <- plot_Hcm_i +
   annotation_custom(grob = grid::textGrob(label = "Fixed Management", hjust=0, gp=gpar(col="black", cex=1.3)), xmin = 0.1, xmax = 0.6, ymin = -67, ymax = -67)  
 
 
-# plot_Hcm_i
+# plot_Hcv_i
 # 
-# ggsave(here::here('figures_full/plot_Hcm_i.pdf'),
+# ggsave(here::here('figures_full/plot_Hcv_i.pdf'),
 #          width=7,height=5)
-# ggsave(here::here('figures_full/plot_Hcm_i.png'),
+# ggsave(here::here('figures_full/plot_Hcv_i.png'),
 #          width=7,height=5)
 
 
@@ -3431,9 +3431,9 @@ all_tupdate_plots_stoch <- plot_grid(
     
     plot_Bmn_i2 + theme(legend.position='bottom', axis.text.x=element_blank(), axis.title.y=element_blank(), legend.text=element_text(size=16), legend.title=element_text(size=17)),
     
-    plot_Hcm_d2 + theme(legend.position="none"),
+    plot_Hcv_d2 + theme(legend.position="none"),
     
-    plot_Hcm_i2 + theme(legend.position="none", axis.title.y=element_blank()),
+    plot_Hcv_i2 + theme(legend.position="none", axis.title.y=element_blank()),
     axis = 'rlbt',
     align="hv",
     nrow=2,
@@ -3449,6 +3449,450 @@ ggsave(here::here('figures/all_tupdate_plots_stoch.png'), width=15,height=12)
 
 
 ```
+
+
+
+## Fig S10 CV results from stochastic simulations
+
+```{r figS10_prep}
+
+# repeat the same data processing as for Fig S9 but this time looking at the coefficients of variation of biomass and harvest
+t_update_df_stoch2 <- ABCDstoch_update_df_short
+
+#glimpse(t_update_df_stoch2)
+
+t_update_df_stoch2_wide <- t_update_df_stoch2 %>%
+  pivot_wider(
+    names_from = metric, values_from = value
+  ) %>%
+  mutate(
+    change_par_direction = paste0(change_par,' ',direction),
+    strategy_label = case_when(strategy == 'SQ' ~ 'fixed',
+                               strategy == 'GCA' ~ '1-year update',
+                               strategy == 'update_10' ~ '10-year update',
+                               strategy == 'update_4' ~ '4-year update'
+                               )
+  ) %>%
+  group_by(period, hcr_type, change_par, change_type, direction, B_cons, Binit, chng_time2, discount_rate, error_rho, error_cv, error_rep, par_A, per_change, change_par_direction) %>%
+  mutate(
+    Bcv_per_diff_sq = 100 * (Bcv - Bcv[strategy_label == 'fixed']) / Bcv[strategy_label == 'fixed'],
+    Hcv_per_diff_sq = 100 * (Hcv - Hcv[strategy_label == 'fixed']) / Hcv[strategy_label == 'fixed']
+  ) %>%
+  ungroup()
+
+# filter to the min, median, and max per diff sq for Bcv
+
+t_update_df_stoch2_wide_Bcv_median <- t_update_df_stoch2_wide %>%
+  filter(strategy != 'SQ') %>%
+  group_by(change_type, change_par, direction, change_par_direction, strategy_label) %>%
+  summarise(
+    Bcv_per_diff_sq = median(Bcv_per_diff_sq)
+    ) %>%
+  mutate(metric = 'Bcv', statistic = 'median')
+
+t_update_df_stoch2_wide_Bcv_max <- t_update_df_stoch2_wide %>%
+  filter(strategy != 'SQ') %>%
+  group_by(change_type, change_par, direction, change_par_direction, strategy_label) %>%
+  slice_max(Bcv_per_diff_sq) %>%
+  mutate(metric = 'Bcv', statistic = 'max') %>%
+  dplyr::select(change_type, change_par, direction, change_par_direction, strategy_label, Bcv_per_diff_sq, metric, statistic)
+
+t_update_df_stoch2_wide_Bcv_min <- t_update_df_stoch2_wide %>%
+  filter(strategy != 'SQ') %>%
+  group_by(change_type, change_par, direction, change_par_direction, strategy_label) %>%
+  slice_min(Bcv_per_diff_sq) %>%
+  mutate(metric = 'Bcv', statistic = 'min') %>%
+  dplyr::select(change_type, change_par, direction, change_par_direction, strategy_label, Bcv_per_diff_sq, metric, statistic)
+
+t_update_df_stoch2_wide_Bcv <- t_update_df_stoch2_wide_Bcv_median %>% 
+  bind_rows(t_update_df_stoch2_wide_Bcv_max) %>%
+  bind_rows(t_update_df_stoch2_wide_Bcv_min) %>%
+  pivot_wider(
+    names_from = statistic, values_from = Bcv_per_diff_sq
+    )
+
+# filter to the min, median, and max per diff sq for Hcv
+
+t_update_df_stoch2_wide_Hcv_median <- t_update_df_stoch2_wide %>%
+  filter(strategy != 'SQ') %>%
+  group_by(change_type, change_par, direction, change_par_direction, strategy_label) %>%
+  summarise(
+    Hcv_per_diff_sq = median(Hcv_per_diff_sq)
+    ) %>%
+  mutate(metric = 'Hcv', statistic = 'median')
+
+t_update_df_stoch2_wide_Hcv_max <- t_update_df_stoch2_wide %>%
+  filter(strategy != 'SQ') %>%
+  group_by(change_type, change_par, direction, change_par_direction, strategy_label) %>%
+  slice_max(Hcv_per_diff_sq) %>%
+  mutate(metric = 'Hcv', statistic = 'max') %>%
+  dplyr::select(change_type, change_par, direction, change_par_direction, strategy_label, Hcv_per_diff_sq, metric, statistic)
+
+t_update_df_stoch2_wide_Hcv_min <- t_update_df_stoch2_wide %>%
+  filter(strategy != 'SQ') %>%
+  group_by(change_type, change_par, direction, change_par_direction, strategy_label) %>%
+  slice_min(Hcv_per_diff_sq) %>%
+  mutate(metric = 'Hcv', statistic = 'min') %>%
+  dplyr::select(change_type, change_par, direction, change_par_direction, strategy_label, Hcv_per_diff_sq, metric, statistic)
+
+t_update_df_stoch2_wide_Hcv <- t_update_df_stoch2_wide_Hcv_median %>% 
+  bind_rows(t_update_df_stoch2_wide_Hcv_max) %>%
+  bind_rows(t_update_df_stoch2_wide_Hcv_min) %>%
+  pivot_wider(
+    names_from = statistic, values_from = Hcv_per_diff_sq
+    )
+
+t_update_df_stoch2_wide <- t_update_df_stoch2_wide_Bcv %>%
+  bind_rows(t_update_df_stoch2_wide_Hcv)
+
+
+df_ylim_0_stoch <- c(
+    min_Bcv_per_diff_sq = min(t_update_df_stoch2_wide_Bcv_min$Bcv_per_diff_sq),
+    max_Bcv_per_diff_sq = max(t_update_df_stoch2_wide_Bcv_max$Bcv_per_diff_sq),
+    min_Hcv_per_diff_sq = min(t_update_df_stoch2_wide_Hcv_min$Hcv_per_diff_sq),
+    max_Hcv_per_diff_sq = max(t_update_df_stoch2_wide_Hcv_max$Hcv_per_diff_sq)
+  )
+
+df_ylim_stoch <- tibble(metric = c('Bcv','Hcv'), 
+                    y_ul = c(
+                      df_ylim_0_stoch[['max_Bcv_per_diff_sq']],
+                      df_ylim_0_stoch[['max_Hcv_per_diff_sq']]
+                      ),
+                    y_ll = c(
+                      df_ylim_0_stoch[['min_Bcv_per_diff_sq']],
+                      df_ylim_0_stoch[['min_Hcv_per_diff_sq']]
+                      )
+                    )
+  
+
+```
+
+
+```{r figS10_plot}
+
+# Make the plots
+
+## Plot settings
+
+# pal_d <- pnw_palette(name="Starfish",n=length(unique(t_update_df_stoch2_wide$change_par)), type = 'continuous')
+# pal_i <- pnw_palette(name="Sunset",n=length(unique(t_update_df_stoch2_wide$change_par)), type = 'continuous')
+
+#https://colorhunt.co/palettes/blue-green-teal
+#https://www.nceas.ucsb.edu/sites/default/files/2020-04/colorPaletteCheatsheet.pdf
+
+# pal_d <- pnw_palette(name="Bay", type = 'continuous')[c(1,3,5)]
+pal_d <- c('#D55E00', '#F0E442', '#E69F00') # Red – #D55E00 (a burnt, vivid red), Yellow – #F0E442 (bright, bold yellow), Orange – #E69F00 (distinct, darker orange)
+pal_i <- c('#0766AD','#C5E898','#29ADB2')
+#pal_i <- blue2green(3)
+# pal_i <- pnw_palette(name="Bay", type = 'continuous')[c(1,3,5)]
+
+# cols_d <- c("K" = pal_d[1], "r" = pal_d[2], "rK" = pal_d[3])
+
+gc <- guide_colorbar(
+    frame.colour = "black",
+    barheight = 8,
+    frame.linewidth = 2,
+    ticks.colour = "black",
+    ticks.linewidth = 2
+  )
+
+# y_labs <- c('Percent Change in\nMean Population Biomass', "Percent Change in\nCumulative Harvest")
+y_labs <- c('Percent Change', "Percent Change")
+
+
+
+
+
+
+## Biomass plots
+
+# change_par_p2 <- ifelse(change_par_p=="rK", "r & K", change_par_p)
+
+#note Binit = 125 = K_C/2 for r increase scenarios
+
+plot_Bcv_d <- ggplot(t_update_df_stoch2_wide %>% 
+         filter(direction == 'decrease') %>%
+           filter(metric == 'Bcv'),
+           #filter(strategy_label == '1-year update' | strategy_label == 'fixed'),
+       aes(x=strategy_label, y=median, fill=change_par, group=change_par)
+       #aes(x=1,y=Bcv_per_diff_sq,fill=change_par, group=change_par)
+       ) +
+  geom_point(size=5, colour = 'black', shape = 21) +
+  # geom_col(position = position_dodge()) +
+  geom_line(aes(colour=change_par),alpha=0.8) +
+  geom_hline(yintercept = 0, linetype = 'dashed', color = 'grey46') +
+  geom_ribbon(
+    aes(
+    x=strategy_label, ymin = min, ymax = max),
+    alpha = 0.3
+  ) +
+  annotate('label', x = 1.2, y = 100, label = "Greater Biomass \nVariability With Climate\nAdaptive Management", fontface = 'bold', size=5) +
+  annotate('label', x = 1.2, y = -40, label = "Greater Biomass \nVariability With Fixed\nManagement", fontface = 'bold', size=5) +
+  scale_y_continuous(
+    limits = c(df_ylim_stoch %>% filter(metric == 'Bcv') %>% pull(y_ll), df_ylim_stoch %>% filter(metric == 'Bcv') %>% pull(y_ul)+3),
+    breaks = scales::breaks_pretty(10)) +
+  scale_colour_manual(
+    name = str_wrap('Climate-Induced Decline',20),
+    values = pal_d,
+    breaks = c('K','r','rK'),
+    labels = c('Carrying\ncapacity','Productivity','Both'),
+    aesthetics = c("colour", "fill")
+    ) +
+  # scale_fill_manual(
+  #   name = str_wrap('Demographic change',10),
+  #   values = pal_d#,
+  #   #labels = 
+  #   ) +
+  xlab('') +
+  # xlab("\nManagement Strategy") +
+  scale_x_discrete(limits = c('fixed','10-year update','4-year update','1-year update'), labels = c('No update', str_wrap('Decadal update',10), str_wrap('Every 4 year update',10), str_wrap('Annual update',10))) +
+  # scale_x_discrete(limits = c('fixed','1-year update'), labels = c('Fixed',str_wrap('Annual update',10))) +
+  ylab(y_labs[1]) +
+  # geom_label_repel(
+  #   data          = labelInfo_Bcv,
+  #   mapping       = aes(x, y, label = g),
+  #   size          = 5
+  # ) +
+  #ggtitle(paste0("Gradual decrease")) +
+  #xlab('Gradual decrease') +
+  theme_pubr(legend="right") +
+  theme(
+      #axis.text.x=element_text(size=14),
+      axis.text.x=element_blank(),
+      axis.ticks.x=element_blank(),
+      axis.text.y=element_text(size=12),
+      axis.title = element_text(size = 14),
+      strip.background = element_blank(),
+      strip.text.x = element_blank(),
+      plot.title = element_text(hjust = 0.5),
+      legend.title.align=0.5#,
+      #plot.margin=margin(b=3,t=1,l=1,r=1,unit="lines")
+    ) #+
+  # geom_segment(aes(x=2,xend=4,y=-20,yend=-20),
+  #              linewidth=0.75) +
+  # annotate(geom="text",x=3,y=-26,label="Climate Adaptive",fontface="bold", size = 5) +
+  # coord_cartesian(ylim = c(-30, NA), clip="off")
+
+
+plot_Bcv_d2 <- plot_Bcv_d
+
+
+
+
+# change_par_p2 <- ifelse(change_par_p=="rK", "r & K", change_par_p)
+
+#note Binit = 125 = K_C/2 for r increase scenarios
+
+plot_Bcv_i <- ggplot(t_update_df_stoch2_wide %>% 
+         filter(direction == 'increase') %>%
+           filter(metric == 'Bcv'),
+            aes(x=strategy_label, y=median, fill=change_par, group=change_par)
+       ) +
+  geom_point(size=5, colour = 'black', shape = 21) +
+  geom_line(aes(colour=change_par),alpha=0.8) +
+  geom_hline(yintercept = 0, linetype = 'dashed', color = 'grey46') +
+  geom_ribbon(
+    aes(
+    x=strategy_label, ymin = min, ymax = max),
+    alpha = 0.3
+  ) +
+    annotate('label', x = 1.2, y = 100, label = "Greater Biomass\nVariability With Climate\nAdaptive Management", fontface = 'bold', size=5) +
+  annotate('label', x = 1.2, y = -40, label = "Greater Biomass\nVariability With Fixed\nManagement", fontface = 'bold', size=5) +
+  scale_y_continuous(
+    limits = c(df_ylim_stoch %>% filter(metric == 'Bcv') %>% pull(y_ll), df_ylim_stoch %>% filter(metric == 'Bcv') %>% pull(y_ul)+3),
+    breaks = scales::breaks_pretty(10)) +
+  scale_colour_manual(
+    name = str_wrap('Climate-Induced Increase',20),
+    values = pal_i,
+    breaks = c('K','r','rK'),
+    labels = c('Carrying\ncapacity','Productivity','Both'),
+    aesthetics = c("colour", "fill")
+    #values = pal_i#,
+    ) +
+  xlab("") +
+  scale_x_discrete(limits = c('fixed','10-year update','4-year update','1-year update'), labels = c('No update', str_wrap('Decadal update',10), str_wrap('Every 4 year update',10), str_wrap('Annual update',10))) +
+  ylab(y_labs[1]) +
+  #ggtitle(paste0("Gradual increase")) +
+  theme_pubr(legend="right") +
+  theme(
+      #axis.text.x=element_text(size=14),
+      axis.text.x=element_blank(),
+      axis.ticks.x=element_blank(),
+      axis.text.y=element_text(size=12),
+      axis.title = element_text(size = 14),
+      strip.background = element_blank(),
+      strip.text.x = element_blank(),
+      plot.title = element_text(hjust = 0.5),
+      legend.title.align=0.5#,
+      #plot.margin=margin(b=3,t=1,l=1,r=1,unit="lines")
+    )
+
+plot_Bcv_i2 <- plot_Bcv_i
+
+
+
+
+
+## Harvest plots
+
+# change_par_p2 <- ifelse(change_par_p=="rK", "r & K", change_par_p)
+
+#note Binit = 125 = K_C/2 for r increase scenarios
+
+plot_Hcv_d <- ggplot(t_update_df_stoch2_wide %>% 
+         filter(direction == 'decrease') %>%
+           filter(metric == 'Hcv'),
+            aes(x=strategy_label, y=median, fill=change_par, group=change_par)
+       ) +
+  geom_point(size=5, colour = 'black', shape = 21) +
+  geom_line(aes(colour=change_par),alpha=0.8) +
+  geom_hline(yintercept = 0, linetype = 'dashed', color = 'grey46') +
+  geom_ribbon(
+    aes(
+    x=strategy_label, ymin = min, ymax = max),
+    alpha = 0.3
+  ) +
+    annotate('label', x = 1.2, y = 80, label = "Greater Harvest\nVariability With Climate\nAdaptive Management", fontface = 'bold', size=5) +
+  annotate('label', x = 1.2, y = -40, label = "Greater Harvest Variability \nWith Fixed Management", fontface = 'bold', size=5) +
+  scale_y_continuous(
+    limits = c(df_ylim_stoch %>% filter(metric == 'Hcv') %>% pull(y_ll)-10, df_ylim_stoch %>% filter(metric == 'Hcv') %>% pull(y_ul)),
+    breaks = scales::breaks_pretty(10)) +
+  scale_colour_manual(
+    name = str_wrap('Climate-Induced Decline',20),
+    values = pal_d,
+    breaks = c('K','r','rK'),
+    labels = c('Carrying\ncapacity','Productivity','Both'),
+    aesthetics = c("colour", "fill")
+
+    ) +
+  xlab("") +
+  scale_x_discrete(limits = c('fixed','10-year update','4-year update','1-year update'), labels = c('No update', str_wrap('Decadal update',10), str_wrap('Every 4 year update',10), str_wrap('Annual update',10))) +
+  ylab(y_labs[2]) +
+  theme_pubr(legend="right") +
+  theme(
+      axis.text.x=element_text(size=14),
+      axis.ticks.x=element_blank(),
+      axis.text.y=element_text(size=12),
+      axis.title = element_text(size = 14),
+      strip.background = element_blank(),
+      strip.text.x = element_blank(),
+      plot.title = element_text(hjust = 0.5),
+      legend.title.align=0.5,
+      plot.margin=margin(b=3,t=1,l=1,r=1,unit="lines")
+    )
+
+plot_Hcv_d2 <- plot_Hcv_d +
+  annotation_custom(grob = linesGrob(), xmin = 1.8, xmax = 4.2, ymin = -61-60, ymax = -61-60) +
+  coord_cartesian(clip="off") +
+  annotation_custom(grob = grid::textGrob(label = "Climate Adaptive Management", hjust=0, gp=gpar(col="black", cex=1.3)), xmin = 1, xmax = 3.3, ymin = -67-65, ymax = -67-65) +
+  annotation_custom(grob = linesGrob(), xmin = 0.5, xmax = 1.5, ymin = -61-60, ymax = -61-60) +
+  annotation_custom(grob = grid::textGrob(label = "Fixed Management", hjust=0, gp=gpar(col="black", cex=1.3)), xmin = 0.1, xmax = 0.6, ymin = -67-65, ymax = -67-65) 
+
+
+# plot_Hcv_d
+# 
+# ggsave(here::here('figures_full/plot_Hcv_d.pdf'),
+#          width=7,height=5)
+# ggsave(here::here('figures_full/plot_Hcv_d.png'),
+#          width=7,height=5)
+
+
+
+# change_par_p2 <- ifelse(change_par_p=="rK", "r & K", change_par_p)
+
+#note Binit = 125 = K_C/2 for r increase scenarios
+
+plot_Hcv_i <- ggplot(t_update_df_stoch2_wide %>% 
+         filter(direction == 'increase') %>%
+           filter(metric == 'Hcv'),
+            aes(x=strategy_label, y=median, fill=change_par, group=change_par)
+       ) +
+  geom_point(size=5, colour = 'black', shape = 21) +
+  geom_line(aes(colour=change_par),alpha=0.8) +
+  geom_hline(yintercept = 0, linetype = 'dashed', color = 'grey46') +
+  geom_ribbon(
+    aes(
+    x=strategy_label, ymin = min, ymax = max),
+    alpha = 0.3
+  ) +
+  annotate('label', x = 1.2, y = 80, label = "Greater Harvest Variability\nWith Climate\nAdaptive Management", fontface = 'bold', size=5) +
+  annotate('label', x = 1.2, y = -40, label = "Greater Harvest Variability \nWith Fixed Management", fontface = 'bold', size=5) +
+  scale_y_continuous(
+    limits = c(df_ylim_stoch %>% filter(metric == 'Hcv') %>% pull(y_ll)-10, df_ylim_stoch %>% filter(metric == 'Hcv') %>% pull(y_ul)),
+    breaks = scales::breaks_pretty(10)) +
+    scale_colour_manual(
+    name = str_wrap('Climate-Induced Increase',20),
+    values = pal_i,
+    breaks = c('K','r','rK'),
+    labels = c('Carrying\ncapacity','Productivity','Both'),
+    aesthetics = c("colour", "fill")
+    ) +
+  xlab("") +
+  scale_x_discrete(limits = c('fixed','10-year update','4-year update','1-year update'), labels = c('No update', str_wrap('Decadal update',10), str_wrap('Every 4 year update',10), str_wrap('Annual update',10))) +
+  ylab(y_labs[2]) +
+  theme_pubr(legend="right") +
+  theme(
+      axis.text.x=element_text(size=14),
+      axis.ticks.x=element_blank(),
+      axis.text.y=element_text(size=12),
+      axis.title = element_text(size = 14),
+      strip.background = element_blank(),
+      strip.text.x = element_blank(),
+      plot.title = element_text(hjust = 0.5),
+      legend.title.align=0.5,
+      plot.margin=margin(b=3,t=1,l=1,r=1,unit="lines")
+    )
+
+plot_Hcv_i2 <- plot_Hcv_i +
+  annotation_custom(grob = linesGrob(), xmin = 1.8, xmax = 4.2, ymin = -61-60, ymax = -61-60) +
+  coord_cartesian(clip="off") +
+  annotation_custom(grob = grid::textGrob(label = "Climate Adaptive Management", hjust=0, gp=gpar(col="black", cex=1.3)), xmin = 1, xmax = 3.3, ymin = -67-65, ymax = -67-65) +
+  annotation_custom(grob = linesGrob(), xmin = 0.5, xmax = 1.5, ymin = -61-60, ymax = -61-60) +
+  annotation_custom(grob = grid::textGrob(label = "Fixed Management", hjust=0, gp=gpar(col="black", cex=1.3)), xmin = 0.1, xmax = 0.6, ymin = -67-65, ymax = -67-65)  
+
+
+# plot_Hcv_i
+# 
+# ggsave(here::here('figures_full/plot_Hcv_i.pdf'),
+#          width=7,height=5)
+# ggsave(here::here('figures_full/plot_Hcv_i.png'),
+#          width=7,height=5)
+
+
+
+
+## Combine all plots
+# need legends on 1st and 3rd plots only
+
+all_tupdate_plots_stoch <- plot_grid(
+    plot_Bcv_d2 + theme(legend.position='bottom', axis.text.x=element_blank(), legend.text=element_text(size=16), legend.title=element_text(size=17)),
+    
+    plot_Bcv_i2 + theme(legend.position='bottom', axis.text.x=element_blank(), axis.title.y=element_blank(), legend.text=element_text(size=16), legend.title=element_text(size=17)),
+    
+    plot_Hcv_d2 + theme(legend.position="none"),
+    
+    plot_Hcv_i2 + theme(legend.position="none", axis.title.y=element_blank()),
+    axis = 'rlbt',
+    align="hv",
+    nrow=2,
+    labels="auto"#,
+    #scale = c(1.2, 1.2, 1.2, 1.2)
+) 
+
+# all_tupdate_plots_stoch
+
+ggsave(here::here('figures/all_tupdate_plots_stochCV.pdf'), width=15,height=12)
+ggsave(here::here('figures/all_tupdate_plots_stochCV.png'), width=15,height=12)
+
+
+
+```
+
+
+
+
+
+
 
 
 
